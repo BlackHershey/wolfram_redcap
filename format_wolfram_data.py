@@ -84,7 +84,7 @@ def get_consecutive_years(group, n):
 
     # get list of differences in years between each session for a participants
     # identify consecutive duplicates in that list (https://stackoverflow.com/questions/6352425/whats-the-most-pythonic-way-to-identify-consecutive-duplicates-in-a-list)
-    diff_count = [ (k, sum(1 for i in g)) for k,g in groupby(np.diff(group.index.get_level_values(CLINIC_YEAR).values)) ]
+    diff_count = [ (k, sum(1 for i in g)) for k,g in groupby(np.diff(group[CLINIC_YEAR].values)) ]
 
     index = 0
     delete_rows = []
@@ -92,12 +92,12 @@ def get_consecutive_years(group, n):
     for k, count in diff_count:
         # not considered consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
         if k != 1 or count < n-1:
-            delete_rows += range(index, count+1)
-            index += count # add count because we still want to check the last index in the range as start of a new consecutive range
+            delete_rows += range(index, index + count + 1)
+            index += count # add count because we still want to check if last index in the range is the start of a new consecutive range
         else:
             if index in delete_rows:
-                delete_rows.remove(index) # if a consecutive range is preceded by a non-consecutive one, the current index would be incorrectly marked for deletion
-            index += count+1 # add count+1 because we know the last index is not consecutive with next one
+                delete_rows.remove(index) # if a consecutive range is preceded by a non-consecutive one, we need to remove the index from the deletion list
+            index += count + 1 # add count+1 because we know the last index is not consecutive with next one
 
     if delete_rows:
         group = group.drop(group.index[delete_rows])
@@ -148,12 +148,12 @@ def format_wolfram_data():
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
 
-    index_cols = [STUDY_ID, SESSION_NUMBER] if args.by_session else [STUDY_ID, CLINIC_YEAR]
-    df.set_index(index_cols, inplace=True)
-
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
         df = df.groupby([STUDY_ID]).apply(get_consecutive_years, args.consecutive)
+
+    index_cols = [STUDY_ID, SESSION_NUMBER] if args.by_session else [STUDY_ID, CLINIC_YEAR]
+    df.set_index(index_cols, inplace=True)
 
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
