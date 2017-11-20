@@ -113,6 +113,8 @@ def format_wolfram_data():
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
     parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
     parser.add_argument('-d', '--duration', nargs='*', metavar='dx_type', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
+    parser.add_argument('--all', nargs='+', metavar='var', help='limit data to participants with data (in export) for all specified variables (can be category or specific variable)')
+    parser.add_argument('--any', nargs='+', metavar='var', help='limit data to participants with data (in export) for any specified variables (can be category or specific variable)')
     args = parser.parse_args()
 
     # create dataframe from REDCap data
