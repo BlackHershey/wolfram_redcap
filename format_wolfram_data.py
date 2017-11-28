@@ -44,6 +44,7 @@ def get_diagnosis_date(row, dx_type):
 
     return np.nan
 
+
 # Determine age at diagnosis
 # Uses birthday and diagnosis date if possible, otherwise uses provided age
 def get_diagnosis_age(row, dx_type):
@@ -115,27 +116,6 @@ def get_column_lists_for_variables(columns, variables):
     return var_completed_columns, var_columns
 
 
-# TODO: either delete FALSE 'meet_reqs' row when done (and meets reqs col) OR figure out how to delete in place
-def has_required_variables(row, all, var_completed_columns, var_columns):
-    col = 'meets_reqs'
-    if col in row and not row[col]:
-        return row
-
-    row[col] = True and row[col] if col in row else True
-
-    if all and not row[var_completed_columns].isin([1]).all():
-        row[col] = False
-    elif not all and not row[var_completed_columns].isin([1]).any():
-        row[col] = False
-
-    if not all and row[var_columns].isnull().all():
-        row[col] = False
-    elif all and row[var_columns].isnull().values.any():
-        row[col] = False
-
-    return row
-
-
 def format_wolfram_data():
     # set up expected arguments and associated help text
     parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
@@ -194,13 +174,13 @@ def format_wolfram_data():
         for arg in args.all:
             if not get_matching_columns(df.columns, arg):
                 raise RuntimeError('Required variable {} was not included in data export'.format(arg))
-        df = df.apply(has_required_variables, args=((True,) + get_column_lists_for_variables(df.columns, args.all)), axis=1)
+        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.all)
+        # remove rows where completed column for any required category is not 1 or where all matching columns are null
+        df = df.drop(df[~(df[var_completed_columns].isin([1]).all(axis=1)) | df[var_columns].isnull().values.all()].index)
     if args.any:
-        df = df.apply(has_required_variables, args=((False,) + get_column_lists_for_variables(df.columns, args.any)), axis=1)
+        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.all)
+        df = df.drop(df[~(df[var_completed_columns].isin([1]).any(axis=1)) | df[var_columns].isnull().values.any()].index)
 
-    if 'meets_reqs' in df.columns:
-        df = df[df['meets_reqs']]
-        df = df.drop(['meets_reqs'], axis=1)
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
         df = df.groupby([STUDY_ID]).apply(get_consecutive_years, args.consecutive)
