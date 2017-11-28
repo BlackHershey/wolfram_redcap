@@ -192,7 +192,7 @@ def format_wolfram_data():
         for arg in args.all:
             if not get_matching_columns(df.columns, arg):
                 raise RuntimeError('Required variable {} was not included in data export'.format(arg))
-        df = df.apply(has_required_variables, args=((True,) + col_list_tuple), axis=1)
+        df = df.apply(has_required_variables, args=((True,) + get_column_lists_for_variables(df.columns, args.all)), axis=1)
     if args.any:
         df = df.apply(has_required_variables, args=((False,) + get_column_lists_for_variables(df.columns, args.any)), axis=1)
 
