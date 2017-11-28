@@ -142,9 +142,12 @@ def format_wolfram_data():
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
     parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
     parser.add_argument('-d', '--duration', nargs='*', metavar='dx_type', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
-    parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for all specified variables (can be category, column prefix, or specific variable)')
-    parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for any specified variables (can be category, column prefix, or specific variable)')
+    parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
+    parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
+
+    if args.any is not None and len(args.any) <= 1:
+        parser.error('Either give more than one variable for any, or use all instead')
 
     # create dataframe from REDCap data
     df = pd.read_csv(args.file)
@@ -158,13 +161,17 @@ def format_wolfram_data():
     df.rename(columns={ 'redcap_event_name': CLINIC_YEAR }, inplace=True)
     df[CLINIC_YEAR] = df[CLINIC_YEAR].str.extract('(\d{4})', expand=False).astype(int)
 
+    num_clinic_years = len(df[CLINIC_YEAR].unique())
+    if args.consecutive is not None and args.consecutive > num_clinic_years:
+        parser.error('Consecutive years cannot exceed number of clinic years ({})'.format(num_clinic_years))
+
     # Temporarily update rows for 2016 that have no session number to be -1 (will remove after calculation)
     df.loc[(df[CLINIC_YEAR] == 2016), [SESSION_NUMBER]] = df.loc[(df[CLINIC_YEAR] == 2016), [SESSION_NUMBER]].fillna(-1)
     df = df[pd.notnull(df[SESSION_NUMBER])] # remove other rows for non-attended sessions
     df[SESSION_NUMBER] = df[SESSION_NUMBER].astype(int) # once NANs are gone, we can cast as int (nicer for flatten display)
 
     # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
-    if args.dx_types != None: # explicit None check because empty array is valid
+    if args.dx_types is not None: # explicit None check because empty array is valid
         df['dob'] = df.groupby([STUDY_ID])['dob'].transform(lambda x: x.loc[x.first_valid_index()]) # fills in dob for missing years using first-found dob for participant
         dx_types = args.dx_types if args.dx_types else ALL_DX_TYPES
         for dx_type in dx_types:
@@ -179,10 +186,13 @@ def format_wolfram_data():
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
 
-    # TODO: add basic contains regex check on all column names (for all and maybe any??) to ensure each var appears at least once in dataset
     # if varaibles are specified, filter out rows that don't have data for them
     if args.all:
-        df = df.apply(has_required_variables, args=((True,) + get_column_lists_for_variables(df.columns, args.all)), axis=1)
+        # make sure that all the required variables actually appear in dataset (otherwise all will be filtered out)
+        for arg in args.all:
+            if not get_matching_columns(df.columns, arg):
+                raise RuntimeError('Required variable {} was not included in data export'.format(arg))
+        df = df.apply(has_required_variables, args=((True,) + col_list_tuple), axis=1)
     if args.any:
         df = df.apply(has_required_variables, args=((False,) + get_column_lists_for_variables(df.columns, args.any)), axis=1)
 
