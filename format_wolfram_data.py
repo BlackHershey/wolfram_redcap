@@ -1,16 +1,28 @@
-import argparse # availble only for python 3.x
+import argparse
 import datetime
 import re
+import time
+import pyodbc
+
 import numpy as np
 import pandas as pd
 
-from itertools import groupby
+from getpass import getpass, getuser
+from itertools import groupby, product
+from redcap import Project, RedcapError
 from sys import argv
 
+# API constants
+DB_PATH = 'H:/Users/Haley Acevedo/wolfram_api_tokens.accdb'
+URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
+
+# Redcap constants
 STUDY_ID = 'study_id'
 CLINIC_YEAR = 'wfs_clinic_year'
 SESSION_NUMBER = 'wolfram_sessionnumber'
+
 ALL_DX_TYPES = ['wfs', 'dm', 'di', 'hearloss', 'oa', 'bladder']
+DEMO_FIELDS_FOR_DURATION = ['wolf_age', 'dob']
 
 def string_to_float(s):
     try:
@@ -116,6 +128,22 @@ def get_column_lists_for_variables(columns, variables):
     return var_completed_columns, var_columns
 
 
+# create separate dataframe with demographic/diagnosis info from API export
+def get_redcap_project():
+    conn_str = (
+        r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
+        r'DBQ=' + DB_PATH + ';'
+        r'PWD=' + getpass()
+    )
+    conn = pyodbc.connect(conn_str)
+    cursor = conn.cursor()
+    sql = 'SELECT api_token FROM api_tokens WHERE userid = ?'
+    cursor.execute(sql, (getuser(),))
+    api_token = cursor.fetchone()[0]
+    project = Project(URL, api_token)
+    return project
+
+
 def format_wolfram_data():
     # set up expected arguments and associated help text
     parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
@@ -134,6 +162,18 @@ def format_wolfram_data():
     # create dataframe from REDCap data
     df = pd.read_csv(args.file)
     df = df[df.study_id.str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
+
+    # determine whether api call is needed (if we don't have session number or if doing dx duration calculation)
+    fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
+    project = None
+    if args.dx_types is not None and not any(col.startswith('clinichx') for col in df.columns):
+        project = get_redcap_project()
+        fields += DEMO_FIELDS_FOR_DURATION
+        fields += get_matching_columns(project.field_names, 'clinichx_dx_')
+    if project:
+        demo_dx_df = project.export_records(fields=fields, format='df')
+        merge_cols = [ col for col in demo_dx_df.columns if col not in df.columns ] # only merge in columns that we don't already have available
+        df = df.merge(demo_dx_df[merge_cols], how='left', left_on=[STUDY_ID, 'redcap_event_name'], right_index=True)
 
     # if clinic year is already in data, drop it - will extract year from redcap_event_name instead
     # a bit redundant, but makes the diagnosis duration logic more managable (clinic year is only
@@ -160,13 +200,13 @@ def format_wolfram_data():
             dx_age_df = df.loc[df[CLINIC_YEAR] == 2016].apply(get_diagnosis_age, args=(dx_type,), axis=1)
             df = df.groupby([STUDY_ID]).apply(calculate_diasnosis_duration, dx_type, dx_age_df)
 
-        # drop columns included for calculation from final dataframe
-        drop_cols = [ col for col in df.columns if col.startswith('clinichx_dx') ]
-        drop_cols = drop_cols + [ 'clinic_history_complete', 'dx_notes' ]
-        df = df.drop(drop_cols, axis=1)
-
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
+
+    # if we have brought in dx info/demographics from the API, remove it after the calculation
+    if len(fields) > 1: # don't need to go through deletion logic if only field is session number
+        demo_dx_drop_cols = [ col for col in merge_cols if col not in [CLINIC_YEAR, SESSION_NUMBER] ]
+        df = df.drop(demo_dx_drop_cols, axis=1)
 
     # if varaibles are specified, filter out rows that don't have data for them
     if args.all:
@@ -195,5 +235,6 @@ def format_wolfram_data():
 
     df.to_csv('formatted_data.csv')
 
-
+start = time.clock()
 format_wolfram_data()
+print(time.clock()-start)
