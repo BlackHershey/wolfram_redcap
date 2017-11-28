@@ -93,11 +93,10 @@ def get_consecutive_years(group, n):
         # not considered consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
         if k != 1 or count < n-1:
             delete_rows += range(index, index + count + 1)
-            index += count # add count because we still want to check if last index in the range is the start of a new consecutive range
         else:
             if index in delete_rows:
                 delete_rows.remove(index) # if a consecutive range is preceded by a non-consecutive one, we need to remove the index from the deletion list
-            index += count + 1 # add count+1 because we know the last index is not consecutive with next one
+        index += count
 
     if delete_rows:
         group = group.drop(group.index[delete_rows])
