@@ -118,7 +118,10 @@ def get_column_lists_for_variables(columns, variables):
 # TODO: either delete FALSE 'meet_reqs' row when done (and meets reqs col) OR figure out how to delete in place
 def has_required_variables(row, all, var_completed_columns, var_columns):
     col = 'meets_reqs'
-    row[col] = True
+    if col in row and not row[col]:
+        return row
+
+    row[col] = True and row[col] if col in row else True
 
     if all and not row[var_completed_columns].isin([1]).all():
         row[col] = False
@@ -160,9 +163,9 @@ def format_wolfram_data():
     df.rename(columns={ 'redcap_event_name': CLINIC_YEAR }, inplace=True)
     df[CLINIC_YEAR] = df[CLINIC_YEAR].str.extract('(\d{4})', expand=False).astype(int)
 
-    num_clinic_years = len(df[CLINIC_YEAR].unique())
-    if args.consecutive is not None and args.consecutive > num_clinic_years:
-        parser.error('Consecutive years cannot exceed number of clinic years ({})'.format(num_clinic_years))
+    num_clinic_years = len(df[CLINIC_YEAR].unique()) # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
+    if args.consecutive is not None and args.consecutive not in range(2, num_clinic_years + 1):
+        parser.error('Consecutive years must be greater than 1 and cannot exceed number of clinic years ({})'.format(num_clinic_years))
 
     # Temporarily update rows for 2016 that have no session number to be -1 (will remove after calculation)
     df.loc[(df[CLINIC_YEAR] == 2016), [SESSION_NUMBER]] = df.loc[(df[CLINIC_YEAR] == 2016), [SESSION_NUMBER]].fillna(-1)
@@ -195,6 +198,9 @@ def format_wolfram_data():
     if args.any:
         df = df.apply(has_required_variables, args=((False,) + get_column_lists_for_variables(df.columns, args.any)), axis=1)
 
+    if 'meets_reqs' in df.columns:
+        df = df[df['meets_reqs']]
+        df = df.drop(['meets_reqs'], axis=1)
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
         df = df.groupby([STUDY_ID]).apply(get_consecutive_years, args.consecutive)
