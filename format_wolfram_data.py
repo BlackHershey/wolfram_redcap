@@ -105,6 +105,35 @@ def get_consecutive_years(group, n):
     return group
 
 
+def get_matching_columns(columns, pattern):
+    return [ col for col in columns if re.match(pattern, col) ]
+
+
+def get_column_lists_for_variables(columns, variables):
+    var_options = '|'.join(variables)
+    var_completed_columns = get_matching_columns(columns, '(' + var_options + ')(_completed|complete|_collected)') # get columns indicating form completion
+    var_columns = get_matching_columns(columns, var_options) # get exact column name matches or column prefix matches
+    return var_completed_columns, var_columns
+
+
+# TODO: either delete FALSE 'meet_reqs' row when done (and meets reqs col) OR figure out how to delete in place
+def has_required_variables(row, all, var_completed_columns, var_columns):
+    col = 'meets_reqs'
+    row[col] = True
+
+    if all and not row[var_completed_columns].isin([1]).all():
+        row[col] = False
+    elif not all and not row[var_completed_columns].isin([1]).any():
+        row[col] = False
+
+    if not all and row[var_columns].isnull().all():
+        row[col] = False
+    elif all and row[var_columns].isnull().values.any():
+        row[col] = False
+
+    return row
+
+
 def format_wolfram_data():
     # set up expected arguments and associated help text
     parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
@@ -113,8 +142,8 @@ def format_wolfram_data():
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
     parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
     parser.add_argument('-d', '--duration', nargs='*', metavar='dx_type', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
-    parser.add_argument('--all', nargs='+', metavar='var', help='limit data to participants with data (in export) for all specified variables (can be category or specific variable)')
-    parser.add_argument('--any', nargs='+', metavar='var', help='limit data to participants with data (in export) for any specified variables (can be category or specific variable)')
+    parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for all specified variables (can be category, column prefix, or specific variable)')
+    parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for any specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
 
     # create dataframe from REDCap data
@@ -149,6 +178,13 @@ def format_wolfram_data():
 
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
+
+    # TODO: add basic contains regex check on all column names (for all and maybe any??) to ensure each var appears at least once in dataset
+    # if varaibles are specified, filter out rows that don't have data for them
+    if args.all:
+        df = df.apply(has_required_variables, args=((True,) + get_column_lists_for_variables(df.columns, args.all)), axis=1)
+    if args.any:
+        df = df.apply(has_required_variables, args=((False,) + get_column_lists_for_variables(df.columns, args.any)), axis=1)
 
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
