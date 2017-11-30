@@ -164,10 +164,12 @@ def format_wolfram_data():
     df = df[df.study_id.str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
 
     # determine whether api call is needed (if we don't have session number or if doing dx duration calculation)
-    fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
     project = None
-    if args.dx_types is not None and not any(col.startswith('clinichx') for col in df.columns):
+    fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
+    if fields:
         project = get_redcap_project()
+    if args.dx_types is not None and not any(col.startswith('clinichx') for col in df.columns):
+        project = project if project else get_redcap_project()
         fields += DEMO_FIELDS_FOR_DURATION
         fields += get_matching_columns(project.field_names, 'clinichx_dx_')
     if project:
