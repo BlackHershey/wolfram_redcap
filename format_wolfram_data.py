@@ -220,7 +220,7 @@ def format_wolfram_data():
         # remove rows where completed column for any required category is not 1 or where all matching columns are null
         df = df.drop(df[~(df[var_completed_columns].isin([1]).all(axis=1)) | df[var_columns].isnull().values.all()].index)
     if args.any:
-        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.all)
+        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.any)
         df = df.drop(df[~(df[var_completed_columns].isin([1]).any(axis=1)) | df[var_columns].isnull().values.any()].index)
 
     # remove session data for participants that did not occur in consecutive years
