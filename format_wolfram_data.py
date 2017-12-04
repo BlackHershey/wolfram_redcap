@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from getpass import getpass, getuser
-from itertools import groupby, product
+from itertools import chain, groupby
 from redcap import Project, RedcapError
 from sys import argv
 
@@ -121,15 +121,32 @@ def get_matching_columns(columns, pattern):
     return [ col for col in columns if re.match(pattern, col) ]
 
 
-def get_column_lists_for_variables(columns, variables):
-    var_options = '|'.join(variables)
-    var_completed_columns = get_matching_columns(columns, '(' + var_options + ')(_completed|complete|_collected)') # get columns indicating form completion
-    var_columns = get_matching_columns(columns, var_options) # get exact column name matches or column prefix matches
-    return var_completed_columns, var_columns
+def get_variable_column_lists(columns, variables, project):
+    # make sure that all the required variables actually appear in dataset (otherwise all will be filtered out)
+    missing_args = [ var for var in variables if not get_matching_columns(columns, var) ]
+    if missing_args:
+        raise RuntimeError('Specified variable(s) not included in data export: {}'.format(missing_args))
+
+    exact_match_columns, other_columns = [], []
+    for var in variables:
+        if var in columns: # if variable name exactly matches column label
+            exact_match_columns.append(var)
+            continue
+
+        if var in project.forms:
+            other_columns.append([ field['field_name'] for field in project.export_metadata(forms=[var]) ])
+        else:
+            other_columns.append(get_matching_columns(columns, var))
+
+    # if no data exists for a field, it's automatically dropped from output, so remove these from our search
+    other_columns = [ [ col for col in l if col in columns ] for l in other_columns ]
+    return exact_match_columns, other_columns
 
 
 # create separate dataframe with demographic/diagnosis info from API export
 def get_redcap_project():
+    print('\nRequested action requires API access. Enter access database password to continue.')
+
     conn_str = (
         r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
         r'DBQ=' + DB_PATH + ';'
@@ -210,22 +227,28 @@ def format_wolfram_data():
         demo_dx_drop_cols = [ col for col in merge_cols if col not in [CLINIC_YEAR, SESSION_NUMBER] ]
         df = df.drop(demo_dx_drop_cols, axis=1)
 
-    # if varaibles are specified, filter out rows that don't have data for them
+    # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
     if args.all:
-        # make sure that all the required variables actually appear in dataset (otherwise all will be filtered out)
-        for arg in args.all:
-            if not get_matching_columns(df.columns, arg):
-                raise RuntimeError('Required variable {} was not included in data export'.format(arg))
-        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.all)
-        # remove rows where completed column for any required category is not 1 or where all matching columns are null
-        df = df.drop(df[~(df[var_completed_columns].isin([1]).all(axis=1)) | df[var_columns].isnull().values.all()].index)
+        exact_match_columns, other_columns = get_variable_column_lists(df.columns, args.all, project)
+        df = df.drop(df[df[exact_match_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().any(axis=1)].index)
+        # for all, we have to make sure each var's column isn't all null
+        for col_list in other_columns:
+            df = df.drop(df[df[col_list].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1)].index)
     if args.any:
-        var_completed_columns, var_columns = get_column_lists_for_variables(df.columns, args.any)
-        df = df.drop(df[~(df[var_completed_columns].isin([1]).any(axis=1)) | df[var_columns].isnull().values.any()].index)
+        exact_match_columns, other_columns = get_variable_column_lists(df.columns, args.any, project)
+        # flatten because for 'any' we can search all the columns together (just one overall has to be non-null)
+        flatted_other_columns = list(chain.from_iterable(other_columns))
+        df = df.drop(df[
+            df[exact_match_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1) | \
+            df[flattened_other_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1)
+        ].index)
 
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
         df = df.groupby([STUDY_ID]).apply(get_consecutive_years, args.consecutive)
+
+    if df.empty:
+        raise RuntimeError('No data to return. Selections have filtered out all rows.')
 
     index_cols = [STUDY_ID, SESSION_NUMBER] if args.by_session else [STUDY_ID, CLINIC_YEAR]
     df.set_index(index_cols, inplace=True)
