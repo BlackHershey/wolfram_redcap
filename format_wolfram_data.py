@@ -237,9 +237,9 @@ def format_wolfram_data():
     if args.any:
         exact_match_columns, other_columns = get_variable_column_lists(df.columns, args.any, project)
         # flatten because for 'any' we can search all the columns together (just one overall has to be non-null)
-        flatted_other_columns = list(chain.from_iterable(other_columns))
+        flattened_other_columns = list(chain.from_iterable(other_columns))
         df = df.drop(df[
-            df[exact_match_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1) | \
+            df[exact_match_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1) & \
             df[flattened_other_columns].apply(lambda x: pd.to_numeric(x, errors='coerce')).isnull().all(axis=1)
         ].index)
 
