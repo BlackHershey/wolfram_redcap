@@ -22,7 +22,7 @@ CLINIC_YEAR = 'wfs_clinic_year'
 SESSION_NUMBER = 'wolfram_sessionnumber'
 
 ALL_DX_TYPES = ['wfs', 'dm', 'di', 'hearloss', 'oa', 'bladder']
-DEMO_FIELDS_FOR_DURATION = ['wolf_age', 'dob']
+NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
 
 def string_to_float(s):
     try:
@@ -57,6 +57,10 @@ def get_diagnosis_date(row, dx_type):
     return np.nan
 
 
+def get_age(date1, date2):
+    return (date2 - date1).days / 365
+
+
 # Determine age at diagnosis
 # Uses birthday and diagnosis date if possible, otherwise uses provided age
 def get_diagnosis_age(row, dx_type):
@@ -68,8 +72,7 @@ def get_diagnosis_age(row, dx_type):
         diagnosis_age = string_to_float(row[get_dx_column(dx_type, 'age')]) # float since we may have fractional age
     else:
         try:
-            dob = pd.to_datetime(row['dob'])
-            diagnosis_age = (diagnosis_date - dob).days / 365
+            diagnosis_age = get_age(row['dob'], diagnosis_date)
         except ValueError:
             pass
 
@@ -83,7 +86,7 @@ def calculate_diasnosis_duration(group, dx_type, dx_age_df):
     diagnosis_age = dx_age_df.loc[dx_age_df[STUDY_ID] == group.name]['dx_age']
     if diagnosis_age.values:
         new_column = '_'.join(['dx', dx_type, 'duration'])
-        group[new_column] = group['wolf_age'] - float(diagnosis_age.values[0]) # duration is session age minus diagnosis age
+        group[new_column] = group['session_age'] - float(diagnosis_age.values[0]) # duration is session age minus diagnosis age
 
     return group
 
@@ -173,22 +176,21 @@ def format_wolfram_data():
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
 
-    if args.any is not None and len(args.any) <= 1:
-        parser.error('Either give more than one variable for any, or use all instead')
-
     # create dataframe from REDCap data
     df = pd.read_csv(args.file)
     df = df[df.study_id.str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
 
-    # determine whether api call is needed (if we don't have session number or if doing dx duration calculation)
+    # only create API project if actions require it and data needed is not already present
     project = None
     fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
-    if fields:
+    if fields: # need to get session number if not in data (always used to determine which rows to keep)
         project = get_redcap_project()
-    if args.dx_types is not None and not any(col.startswith('clinichx') for col in df.columns):
+    if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
         project = project if project else get_redcap_project()
-        fields += DEMO_FIELDS_FOR_DURATION
-        fields += get_matching_columns(project.field_names, 'clinichx_dx_')
+        if args.dx_types is not None:
+            fields += NON_DX_FIELDS_FOR_DURATION
+            if not any(col.startswith('clinichx') for col in df.columns):
+                fields += get_matching_columns(project.field_names, 'clinichx_dx_') # need to bring in dx info columns if not already in data
     if project:
         demo_dx_df = project.export_records(fields=fields, format='df')
         merge_cols = [ col for col in demo_dx_df.columns if col not in df.columns ] # only merge in columns that we don't already have available
@@ -213,11 +215,13 @@ def format_wolfram_data():
 
     # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
     if args.dx_types is not None: # explicit None check because empty array is valid
-        df['dob'] = df.groupby([STUDY_ID])['dob'].transform(lambda x: x.loc[x.first_valid_index()]) # fills in dob for missing years using first-found dob for participant
+        df['dob'] = pd.to_datetime(df.groupby([STUDY_ID])['dob'].transform(lambda x: x.loc[x.first_valid_index()])) # fills in dob for missing years using first-found dob for participant
+        df['session_age'] = df.apply(lambda x: get_age(x['dob'], pd.to_datetime(x['clinic_date'])), axis=1)
         dx_types = args.dx_types if args.dx_types else ALL_DX_TYPES
         for dx_type in dx_types:
             dx_age_df = df.loc[df[CLINIC_YEAR] == 2016].apply(get_diagnosis_age, args=(dx_type,), axis=1)
             df = df.groupby([STUDY_ID]).apply(calculate_diasnosis_duration, dx_type, dx_age_df)
+
 
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
@@ -259,6 +263,7 @@ def format_wolfram_data():
         df.columns = [ '_'.join(map(str,i)) for i in df.columns ]
 
     df.to_csv('formatted_data.csv')
+
 
 start = time.clock()
 format_wolfram_data()
