@@ -164,10 +164,17 @@ def get_redcap_project():
     return project
 
 
+def merge_api_exports(df, api_df):
+    merge_cols = [ col for col in api_df.columns if col not in df.columns ] # only merge in columns that we don't already have
+    return df.merge(api_df[merge_cols], how='left', left_on=[STUDY_ID, 'redcap_event_name'], right_index=True), merge_cols
+
+
 def format_wolfram_data():
     # set up expected arguments and associated help text
-    parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
-    parser.add_argument('file', type=argparse.FileType('r', encoding='utf-8-sig'), help='exported file to be formatted') # utf-8-sig encoding to remove UTF-8 byte order mark
+    parser = argparse.ArgumentParser(description='Formats REDCap data exports')
+    parser.add_argument('output_file', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
+    parser.add_argument('--forms', nargs='+', help='forms from redcap to be exported and formatted (if not given, --input-file is required)')
+    parser.add_argument('-i', '--input-file', type=argparse.FileType('r', encoding='utf-8-sig'), help='redcap export file (csv) to be formatted (if not given, --forms is required)') # utf-8-sig encoding to remove UTF-8 byte order mark
     parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
     parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
@@ -176,25 +183,31 @@ def format_wolfram_data():
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
 
-    # create dataframe from REDCap data
-    df = pd.read_csv(args.file)
+    if not args.forms and not args.input_file:
+        parser.error('Either --forms or --input_file is required.')
+
+    df = pd.read_csv(args.input_file) if args.input_file else None
+    project = None
+    if args.forms:
+        project = get_redcap_project()
+        api_df = project.export_records(forms=args.forms, format='df')
+        df = merge_api_exports(df, api_df)[0] if df is not None else api_df.reset_index() # ignore merge_cols return since we want them in the final output in this case
+
     df = df[df.study_id.str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
 
     # only create API project if actions require it and data needed is not already present
-    project = None
     fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
     if fields: # need to get session number if not in data (always used to determine which rows to keep)
-        project = get_redcap_project()
+        project = project if project else get_redcap_project()
     if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
         project = project if project else get_redcap_project()
         if args.dx_types is not None:
             fields += NON_DX_FIELDS_FOR_DURATION
             if not any(col.startswith('clinichx') for col in df.columns):
                 fields += get_matching_columns(project.field_names, 'clinichx_dx_') # need to bring in dx info columns if not already in data
-    if project:
+    if fields:
         demo_dx_df = project.export_records(fields=fields, format='df')
-        merge_cols = [ col for col in demo_dx_df.columns if col not in df.columns ] # only merge in columns that we don't already have available
-        df = df.merge(demo_dx_df[merge_cols], how='left', left_on=[STUDY_ID, 'redcap_event_name'], right_index=True)
+        df, merge_cols = merge_api_exports(df, demo_dx_df)
 
     # if clinic year is already in data, drop it - will extract year from redcap_event_name instead
     # a bit redundant, but makes the diagnosis duration logic more managable (clinic year is only
@@ -262,7 +275,7 @@ def format_wolfram_data():
         df = df.unstack().sort_index(1, level=1)
         df.columns = [ '_'.join(map(str,i)) for i in df.columns ]
 
-    df.to_csv('formatted_data.csv')
+    df.to_csv(args.output_file)
 
 
 start = time.clock()
