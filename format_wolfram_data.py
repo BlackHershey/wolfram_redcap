@@ -196,9 +196,7 @@ def format_wolfram_data():
     df = df[df.study_id.str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
 
     # only create API project if actions require it and data needed is not already present
-    fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else []
-    if fields: # need to get session number if not in data (always used to determine which rows to keep)
-        project = project if project else get_redcap_project()
+    fields = [SESSION_NUMBER] if SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
         project = project if project else get_redcap_project()
         if args.dx_types is not None:
@@ -206,6 +204,7 @@ def format_wolfram_data():
             if not any(col.startswith('clinichx') for col in df.columns):
                 fields += get_matching_columns(project.field_names, 'clinichx_dx_') # need to bring in dx info columns if not already in data
     if fields:
+        project = project if project else get_redcap_project()
         demo_dx_df = project.export_records(fields=fields, format='df')
         df, merge_cols = merge_api_exports(df, demo_dx_df)
 
