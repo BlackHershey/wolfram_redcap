@@ -186,6 +186,7 @@ def format_wolfram_data():
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
     parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
     parser.add_argument('-d', '--duration', nargs='*', metavar='dx_type', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
+    parser.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
     parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
@@ -281,6 +282,9 @@ def format_wolfram_data():
     if args.flatten:
         df = df.unstack().sort_index(1, level=1)
         df.columns = [ '_'.join(map(str,i)) for i in df.columns ]
+
+    if args.transpose:
+        df = df.transpose()
 
     try:
         df.to_csv(args.output_file)
