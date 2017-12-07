@@ -10,7 +10,8 @@ import pandas as pd
 from getpass import getpass, getuser
 from itertools import chain, groupby
 from redcap import Project, RedcapError
-from sys import argv
+from subprocess import Popen
+from sys import exit, stderr
 
 # API constants
 DB_PATH = 'H:/Users/Haley Acevedo/wolfram_api_tokens.accdb'
@@ -128,7 +129,8 @@ def get_variable_column_lists(columns, variables, project):
     # make sure that all the required variables actually appear in dataset (otherwise all will be filtered out)
     missing_args = [ var for var in variables if not get_matching_columns(columns, var) ]
     if missing_args:
-        raise RuntimeError('Specified variable(s) not included in data export: {}'.format(missing_args))
+        stderr.write('Specified variable(s) not included in data export: {}'.format(missing_args))
+        exit(1)
 
     exact_match_columns, other_columns = [], []
     for var in variables:
@@ -150,12 +152,17 @@ def get_variable_column_lists(columns, variables, project):
 def get_redcap_project():
     print('\nRequested action requires API access. Enter access database password to continue.')
 
-    conn_str = (
-        r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
-        r'DBQ=' + DB_PATH + ';'
-        r'PWD=' + getpass()
-    )
-    conn = pyodbc.connect(conn_str)
+    try:
+        conn_str = (
+            r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
+            r'DBQ=' + DB_PATH + ';'
+            r'PWD=' + getpass()
+        )
+        conn = pyodbc.connect(conn_str)
+    except pyodbc.Error:
+        stderr.write('Entered incorrect password for database.')
+        exit(1)
+
     cursor = conn.cursor()
     sql = 'SELECT api_token FROM api_tokens WHERE userid = ?'
     cursor.execute(sql, (getuser(),))
@@ -264,7 +271,8 @@ def format_wolfram_data():
         df = df.groupby([STUDY_ID]).apply(get_consecutive_years, args.consecutive)
 
     if df.empty:
-        raise RuntimeError('No data to return. Selections have filtered out all rows.')
+        stderr.write('No data to return. Selections have filtered out all rows.')
+        exit(1)
 
     index_cols = [STUDY_ID, SESSION_NUMBER] if args.by_session else [STUDY_ID, CLINIC_YEAR]
     df.set_index(index_cols, inplace=True)
@@ -274,9 +282,12 @@ def format_wolfram_data():
         df = df.unstack().sort_index(1, level=1)
         df.columns = [ '_'.join(map(str,i)) for i in df.columns ]
 
-    df.to_csv(args.output_file)
+    try:
+        df.to_csv(args.output_file)
+        Popen(args.output_file, shell=True)
+    except PermissionError:
+        stderr.write('Output file is currently open. Please close the file before trying again.')
+        exit(1)
 
 
-start = time.clock()
 format_wolfram_data()
-print(time.clock()-start)
