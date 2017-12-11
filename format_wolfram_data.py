@@ -174,7 +174,7 @@ def get_redcap_project():
 def format_wolfram_data():
     # set up expected arguments and associated help text
     parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
-    parser.add_argument('input_file', type=argparse.FileType('r', encoding='utf-8-sig'), help='exported file to be formatted') # utf-8-sig encoding to remove UTF-8 byte order mark
+    parser.add_argument('input_file', help='exported file to be formatted')
     parser.add_argument('output_file', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
     parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
@@ -184,6 +184,9 @@ def format_wolfram_data():
     parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
     args = parser.parse_args()
+
+    if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
+        parser.error('Input and output files must be of type csv')
 
     # create dataframe from REDCap data
     df = pd.read_csv(args.input_file)
