@@ -14,7 +14,7 @@ from subprocess import Popen
 from sys import exit, stderr
 
 # API constants
-DB_PATH = 'H:/Users/Haley Acevedo/wolfram_api_tokens.accdb'
+DB_PATH = 'H:/REDCap Scripts/api_tokens.accdb'
 URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
 
 # Redcap constants
@@ -164,7 +164,7 @@ def get_redcap_project():
         exit(1)
 
     cursor = conn.cursor()
-    sql = 'SELECT api_token FROM api_tokens WHERE userid = ?'
+    sql = 'SELECT api_token FROM wolfram_api_tokens WHERE userid = ?'
     cursor.execute(sql, (getuser(),))
     api_token = cursor.fetchone()[0]
     project = Project(URL, api_token)
