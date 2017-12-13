@@ -199,13 +199,11 @@ def format_wolfram_data():
         project = project if project else get_redcap_project()
         if args.dx_types is not None:
             fields += NON_DX_FIELDS_FOR_DURATION
-            if not any(col.startswith('clinichx') for col in df.columns):
-                fields += get_matching_columns(project.field_names, 'clinichx_dx_') # need to bring in dx info columns if not already in data
+            fields += get_matching_columns(project.field_names, 'clinichx_dx_') # if doing date calculation, always bring in all dates to prevent possible date-shift errors
     if fields:
         project = project if project else get_redcap_project()
         demo_dx_df = project.export_records(fields=fields, format='df')
-        merge_cols = [ col for col in demo_dx_df.columns if col not in df.columns ] # only merge in columns that we don't already have available
-        df = df.merge(demo_dx_df[merge_cols], how='left', left_on=[STUDY_ID, 'redcap_event_name'], right_index=True)
+        df = df.merge(demo_dx_df, how='left', left_on=[STUDY_ID, 'redcap_event_name'], right_index=True, suffixes=('_original', ''))
 
     # if clinic year is already in data, drop it - will extract year from redcap_event_name instead
     # a bit redundant, but makes the diagnosis duration logic more managable (clinic year is only
@@ -237,10 +235,12 @@ def format_wolfram_data():
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[SESSION_NUMBER] != -1]
 
-    # if we have brought in dx info/demographics from the API, remove it after the calculation
+    # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
     if len(fields) > 1: # don't need to go through deletion logic if only field is session number
-        demo_dx_drop_cols = [ col for col in merge_cols if col not in [CLINIC_YEAR, SESSION_NUMBER] ]
+        demo_dx_drop_cols = [ col for col in demo_dx_df.columns if col not in [CLINIC_YEAR, SESSION_NUMBER] ]
         df = df.drop(demo_dx_drop_cols, axis=1)
+        suffixed_columns = { col: col[:-9] for col in df.columns if col.endswith('_original') }
+        df.rename(columns=suffixed_columns, inplace=True)
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
     if args.all:
