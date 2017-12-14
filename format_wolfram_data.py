@@ -104,21 +104,22 @@ def get_consecutive_years(group, n):
     diff_count = [ (k, sum(1 for i in g)) for k,g in groupby(np.diff(group[CLINIC_YEAR].values)) ]
 
     index = 0
-    delete_rows = []
+    consecutive_rows = []
+    prev_consecutive = False
     # iterate through to identify rows that make up consecutive ranges
     for k, count in diff_count:
-        # not considered consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
-        if k != 1 or count < n-1:
-            delete_rows += range(index, index + count + 1)
+        if prev_consecutive: # if the previous one was consecutive, we know this one is not consecutive
+            index += count-1
+            prev_consecutive = False
+        elif k != 1 or count < n-1: # not consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
+            index += count
         else:
-            if index in delete_rows:
-                delete_rows.remove(index) # if a consecutive range is preceded by a non-consecutive one, we need to remove the index from the deletion list
-        index += count
+            prev_consecutive = True
+            range_end = index + count + 1
+            consecutive_rows += range(index, range_end)
+            index = range_end
 
-    if delete_rows:
-        group = group.drop(group.index[delete_rows])
-
-    return group
+    return group.iloc[consecutive_rows,:] # return only rows that were in consecutive ranges
 
 
 def get_matching_columns(columns, pattern):
