@@ -3,8 +3,6 @@ import redcap_common
 
 import pandas as pd
 
-import pdb
-
 TRACK_STUDY_ID = 'track_id'
 TRACK_EXAM_DATE = 'physicalexam_date'
 
@@ -46,8 +44,6 @@ def format_track_data():
         fields = redcap_common.get_matching_columns(project.field_names, '\w*(' + '|'.join(DURATION_FIELDS) + ')')
         df = redcap_common.merge_api_data(df, project, fields, [TRACK_STUDY_ID])
 
-    #pdb.set_trace()
-
     # expand/rename after api merge to ensure column names match up
     df, non_session_cols = redcap_common.expand(df.set_index(TRACK_STUDY_ID))
     df = redcap_common.rename_common_columns(df, RENAMES, False)
@@ -69,9 +65,9 @@ def format_track_data():
         df = df.drop([redcap_common.SESSION_YEAR], axis=1)
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names pre-flattening
+    df = df.set_index([TRACK_STUDY_ID, redcap_common.SESSION_NUMBER])
 
     if not args.expand:
-        df = df.set_index([TRACK_STUDY_ID, redcap_common.SESSION_NUMBER])
         df = redcap_common.flatten(df) # always reflatten at end, unless expand flag is set
 
     if args.transpose:
