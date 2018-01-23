@@ -72,7 +72,7 @@ def format_wolfram_data():
     # a bit redundant, but makes the diagnosis duration logic more managable (clinic year is only
     #   specified for years attended, but dx info is in 2016 always - need to be able to indentify this)
     if WFS_CLINIC_YEAR in df.columns:
-        df.drop([CLINIC_YEAR], inplace=True, axis=1)
+        df.drop([WFS_CLINIC_YEAR], inplace=True, axis=1)
     df[redcap_common.SESSION_YEAR] = df[redcap_common.SESSION_YEAR].str.extract('(\d{4})', expand=False).astype(int)
 
     num_clinic_years = len(df[redcap_common.SESSION_YEAR].unique()) # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
