@@ -22,6 +22,7 @@ URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
 WFS_STUDY_ID = 'study_id'
 WFS_CLINIC_YEAR = 'wfs_clinic_year'
 WFS_SESSION_NUMBER = 'wolfram_sessionnumber'
+MISSED_SESSION = 'missed_session'
 
 ALL_DX_TYPES = ['wfs', 'dm', 'di', 'hearloss', 'oa', 'bladder']
 NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
@@ -55,7 +56,9 @@ def format_wolfram_data():
 
     # only create API project if actions require it and data needed is not already present
     project = None
-    fields = [WFS_SESSION_NUMBER] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
+    fields = [WFS_SESSION_NUMBER,] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
+    if MISSED_SESSION not in df.columns:
+        fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
     if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
         project = redcap_common.get_redcap_project('wolfram')
         if args.dx_types is not None:
@@ -81,7 +84,9 @@ def format_wolfram_data():
 
     # Temporarily update rows for 2016 that have no session number to be -1 (will remove after calculation)
     df.loc[(df[redcap_common.SESSION_YEAR] == 2016), [redcap_common.SESSION_NUMBER]] = df.loc[(df[redcap_common.SESSION_YEAR] == 2016), [redcap_common.SESSION_NUMBER]].fillna(-1)
-    df = df[pd.notnull(df[redcap_common.SESSION_NUMBER])] # remove other rows for non-attended sessions
+    # remove rows for sessions not attended (either will have no session number or will have a flag saying they did not attend)
+    df = df[pd.notnull(df[redcap_common.SESSION_NUMBER])]
+    df = df[pd.isnull(df[MISSED_SESSION])]
     df[redcap_common.SESSION_NUMBER] = df[redcap_common.SESSION_NUMBER].astype(int) # once NANs are gone, we can cast as int (nicer for flatten display)
 
     # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
@@ -117,8 +122,9 @@ def format_wolfram_data():
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
-    if len(fields) > 1: # don't need to go through deletion logic if only field is session number
-        fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
+    if not fields == [WFS_SESSION_NUMBER]: # don't need to go through deletion logic if only field is session number
+        if WFS_SESSION_NUMBER in fields:
+            fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
         df = redcap_common.cleanup_api_merge(df, fields)
 
 
