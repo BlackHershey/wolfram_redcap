@@ -40,8 +40,8 @@ def format_wolfram_data():
     parser.add_argument('output_file', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
     parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
     parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
-    parser.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant (default is one row per session)')
-    parser.add_argument('-d', '--duration', nargs='*', metavar='dx_type', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
+    parser.add_argument('-f', '--flatten', const='session', nargs='?', choices=['session','variable'], help='arrange all session data in single row for participant (option to sort by session or by variable)')
+    parser.add_argument('-d', '--duration', nargs='*', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
     parser.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
     parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
@@ -117,8 +117,7 @@ def format_wolfram_data():
         stderr.write('No data to return. Selections have filtered out all rows.')
         exit(1)
 
-    index_cols = [redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER] if args.by_session else [redcap_common.STUDY_ID, redcap_common.SESSION_YEAR]
-    df.set_index(index_cols, inplace=True)
+    df.set_index([redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER], inplace=True)
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
@@ -130,8 +129,8 @@ def format_wolfram_data():
 
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
-        prefix = 's' if args.by_session else ''
-        df = redcap_common.flatten(df, prefix)
+        sort = args.flatten == 'session'
+        df = redcap_common.flatten(df, sort, 's')
 
     if args.transpose:
         df = df.transpose()

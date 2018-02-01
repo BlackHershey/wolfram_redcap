@@ -121,7 +121,7 @@ def calculate_diasnosis_duration(group, dx_type, dx_age_df):
 
 # Filter down to consecutive year data (at least n years) for participants
 # Keeps all consecutive ranges of data for each particpant
-def get_consecutive_years(group, n):
+def get_consecutive_years(group, n, keep_all=False):
     # remove participant data if they haven't been even involved for n years
     if len(group) < n:
         return
@@ -146,7 +146,7 @@ def get_consecutive_years(group, n):
             consecutive_rows += range(index, range_end)
             index = range_end
 
-    return group.iloc[consecutive_rows,:] # return only rows that were in consecutive ranges
+    return group.iloc[consecutive_rows[:n],:] if not keep_all else group.iloc[consecutive_rows,:]
 
 
 def get_matching_columns(columns, pattern):
@@ -198,8 +198,10 @@ def check_for_any(df, any_vars, project, cast_numeric=False):
 
 
 # re-shape dataframe such that there is one row per participant (each row contains all sessions)
-def flatten(df, prefix=''):
-    df = df.unstack().sort_index(1, level=1)
+def flatten(df, sort=True, prefix=''):
+    df = df.unstack()
+    if sort:
+        df = df.sort_index(1, level=1)
     df.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df.columns ] # append unstacked index to front of column name
     df = df.dropna(axis=1, how='all')
     return df
