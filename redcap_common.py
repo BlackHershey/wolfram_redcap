@@ -216,7 +216,7 @@ def expand(df):
     df.columns = df.columns.str.split('_', n=1, expand=True)
     df = df.stack(level=0).reset_index()  # creates new level and labels it 'level_1' (actually represents session_number)
     return df.rename(columns={'level_0': STUDY_ID, 'level_1': 'session_number'}), non_session_cols
-
+    
 
 def write_results_and_open(df, output_file):
     try:

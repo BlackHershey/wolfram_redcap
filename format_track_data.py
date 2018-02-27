@@ -1,7 +1,11 @@
-import argparse
-import redcap_common
+import sys
+sys.path.append(r'H:\REDCap Scripts')
 
+from gooey import Gooey, GooeyParser
+
+import argparse
 import pandas as pd
+import redcap_common
 
 TRACK_STUDY_ID = 'track_id'
 TRACK_EXAM_DATE = 'physicalexam_date'
@@ -9,17 +13,19 @@ TRACK_EXAM_DATE = 'physicalexam_date'
 RENAMES = [TRACK_STUDY_ID, None, None, TRACK_EXAM_DATE, None]
 DURATION_FIELDS = ['dob', 'db_dx_date', 'physicalexam_date']
 
+@Gooey(required_cols=1, optional_cols=1)
 def format_track_data():
     # set up expected arguments and associated help text
-    parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
-    parser.add_argument('input_file', help='exported file to be formatted')
-    parser.add_argument('output_file', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
+    parser = GooeyParser(description='Formats data from REDCap csv export')
+    parser.add_argument('input_file', widget='FileChooser', help='exported file to be formatted')
+    parser.add_argument('output_file', widget='FileChooser', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
     parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
     parser.add_argument('-e', '--expand', action='store_true', help='arrange data with one row per subject per session')
     parser.add_argument('-d', '--duration', action='store_true', help='calculate diabetes diagnosis duration')
     parser.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
     parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
     parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
+    parser.add_argument('--api_password', widget='PasswordField', help='api password')
     args = parser.parse_args()
 
     if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):

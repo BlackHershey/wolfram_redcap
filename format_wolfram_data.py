@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from getpass import getpass, getuser
+from gooey import Gooey, GooeyParser
 from itertools import chain, groupby
 from redcap import Project, RedcapError
 from subprocess import Popen
@@ -33,18 +34,25 @@ def get_dx_column(dx_type, measure):
     return '_'.join(['clinichx', 'dx', dx_type, measure])
 
 
-def format_wolfram_data():
+@Gooey
+def format_wolfram_data(required_cols=1, optional_cols=1):
     # set up expected arguments and associated help text
-    parser = argparse.ArgumentParser(description='Formats data from REDCap csv export')
-    parser.add_argument('input_file', help='exported file to be formatted')
-    parser.add_argument('output_file', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
-    parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
-    parser.add_argument('-s', '--by-session', action='store_true', help='organize data by session (default is by year)')
-    parser.add_argument('-f', '--flatten', const='session', nargs='?', choices=['session','variable'], help='arrange all session data in single row for participant (option to sort by session or by variable)')
-    parser.add_argument('-d', '--duration', nargs='*', dest='dx_types', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
-    parser.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
-    parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
-    parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
+    parser = GooeyParser(description='Formats data from REDCap csv export')
+    required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
+    required.add_argument('--input_file', required=True, widget='FileChooser', help='exported file to be formatted')
+    required.add_argument('--output_file', required=True, widget='FileChooser', help='where to store formatted data')
+
+    optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
+    optional.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
+    optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
+    optional.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
+    optional.add_argument('--all_vars', nargs='+', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
+    optional.add_argument('--any_vars', nargs='+', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
+
+    flatten_options = parser.add_argument_group('Flatten options', gooey_options={'columns':2, 'show_border':True})
+    flatten_options.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant')
+    flatten_options.add_argument('-s', '--sort_by', default='session', choices=['session','variable'], help='sort flattened data by session or variable')
+
     args = parser.parse_args()
 
     if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
@@ -59,7 +67,7 @@ def format_wolfram_data():
     fields = [WFS_SESSION_NUMBER,] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if MISSED_SESSION not in df.columns:
         fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
-    if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
+    if any(arg is not None for arg in [args.dx_types, args.all_vars, args.any_vars]): # all of these args require api project info
         project = redcap_common.get_redcap_project('wolfram')
         if args.dx_types is not None:
             fields += NON_DX_FIELDS_FOR_DURATION
@@ -104,10 +112,10 @@ def format_wolfram_data():
     df = df[df[redcap_common.SESSION_NUMBER] != -1]
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
-    if args.all:
-        df = redcap_common.check_for_all(df, args.all, project, True)
-    if args.any:
-        df = redcap_common.check_for_any(df, args.any, project, True)
+    if args.all_vars:
+        df = redcap_common.check_for_all(df, args.all_vars, project, True)
+    if args.any_vars:
+        df = redcap_common.check_for_any(df, args.any_vars, project, True)
 
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
@@ -129,7 +137,7 @@ def format_wolfram_data():
 
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
-        sort = args.flatten == 'session'
+        sort = args.sort_by == 'session'
         df = redcap_common.flatten(df, sort, 's')
 
     if args.transpose:
