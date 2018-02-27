@@ -98,7 +98,7 @@ def format_wolfram_data():
             df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df[redcap_common.SESSION_YEAR] == 2016].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
             df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diasnosis_duration, dx_type, dx_age_df)
-            df = df.drop('session_age', axis=1)
+        df = df.drop('session_age', axis=1)
 
     # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
     df = df[df[redcap_common.SESSION_NUMBER] != -1]
