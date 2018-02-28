@@ -13,19 +13,28 @@ TRACK_EXAM_DATE = 'physicalexam_date'
 RENAMES = [TRACK_STUDY_ID, None, None, TRACK_EXAM_DATE, None]
 DURATION_FIELDS = ['dob', 'db_dx_date', 'physicalexam_date']
 
-@Gooey(required_cols=1, optional_cols=1)
+@Gooey(default_size=(700,600))
 def format_track_data():
     # set up expected arguments and associated help text
-    parser = GooeyParser(description='Formats data from REDCap csv export')
-    parser.add_argument('input_file', widget='FileChooser', help='exported file to be formatted')
-    parser.add_argument('output_file', widget='FileChooser', help='full filepath where formatted data should be stored (if file does not exist in location, it will be created)')
-    parser.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
-    parser.add_argument('-e', '--expand', action='store_true', help='arrange data with one row per subject per session')
-    parser.add_argument('-d', '--duration', action='store_true', help='calculate diabetes diagnosis duration')
-    parser.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
-    parser.add_argument('--all', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
-    parser.add_argument('--any', nargs='+', metavar='var', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
-    parser.add_argument('--api_password', widget='PasswordField', help='api password')
+    parser = GooeyParser(description='Formats TRACK data from REDCap csv export')
+
+    required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
+    required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
+    required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
+    required.add_argument('--api_password', required=True, widget='PasswordField', help='Password to access API token')
+
+    optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':2})
+    optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
+    optional.add_argument('-d', '--duration', action='store_true', help='Calculate diabetes diagnosis duration')
+
+    variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
+    variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
+    variable_options.add_argument('--any', nargs='+', default=None, help='At least one specified data point required for participant to be included in result')
+
+    format_options = parser.add_argument_group('Formatting options', gooey_options={'columns':2, 'show_border':True})
+    format_options.add_argument('-e', '--expand', action='store_true', help='Arrange data with one row per subject per session')
+    format_options.add_argument('-t', '--transpose', action='store_true', help='Transpose the data')
+
     args = parser.parse_args()
 
     if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
@@ -37,7 +46,7 @@ def format_track_data():
 
     project = None
     if any(arg is not None for arg in [args.all, args.any, args.duration, args.consecutive]):
-        project = redcap_common.get_redcap_project('track')
+        project = redcap_common.get_redcap_project('track', args.api_password)
 
     if args.all:
         df = redcap_common.check_for_all(df, args.all, project)

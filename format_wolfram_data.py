@@ -34,24 +34,27 @@ def get_dx_column(dx_type, measure):
     return '_'.join(['clinichx', 'dx', dx_type, measure])
 
 
-@Gooey
-def format_wolfram_data(required_cols=1, optional_cols=1):
+@Gooey(default_size=(700,600))
+def format_wolfram_data():
     # set up expected arguments and associated help text
-    parser = GooeyParser(description='Formats data from REDCap csv export')
+    parser = GooeyParser(description='Formats Wolfram data from REDCap csv export')
     required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
-    required.add_argument('--input_file', required=True, widget='FileChooser', help='exported file to be formatted')
-    required.add_argument('--output_file', required=True, widget='FileChooser', help='where to store formatted data')
+    required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
+    required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
+    required.add_argument('--api_password', required=True, widget='PasswordField', help='Password to access API token')
 
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
-    optional.add_argument('-c', '--consecutive', type=int, metavar='num_years', help='limit data to particpants with data for a number of consecutive years')
-    optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='calculate diagnosis duration for specified diagnosis types (all if none specified)')
-    optional.add_argument('-t', '--transpose', action='store_true', help='transpose the data')
-    optional.add_argument('--all_vars', nargs='+', default=None, help='limit data to participants with data (in export) for every specified variables (can be category, column prefix, or specific variable)')
-    optional.add_argument('--any_vars', nargs='+', default=None, help='limit data to participants with data (in export) for at least one of the specified variables (can be category, column prefix, or specific variable)')
+    optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
+    optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
 
-    flatten_options = parser.add_argument_group('Flatten options', gooey_options={'columns':2, 'show_border':True})
-    flatten_options.add_argument('-f', '--flatten', action='store_true', help='arrange all session data in single row for participant')
-    flatten_options.add_argument('-s', '--sort_by', default='session', choices=['session','variable'], help='sort flattened data by session or variable')
+    variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
+    variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
+    variable_options.add_argument('--any', nargs='+', default=None, help='At least one specified data point required for participant to be included in result')
+
+    format_options = parser.add_argument_group('Formatting options', gooey_options={'columns':2, 'show_border':True})
+    format_options.add_argument('-f', '--flatten', action='store_true', help='Arrange all session data in single row for participant')
+    format_options.add_argument('-t', '--transpose', action='store_true', help='Transpose the data')
+    format_options.add_argument('-s', '--sort_by', default='session', choices=['session','variable'], help='Sort flattened data by session or variable')
 
     args = parser.parse_args()
 
@@ -67,13 +70,13 @@ def format_wolfram_data(required_cols=1, optional_cols=1):
     fields = [WFS_SESSION_NUMBER,] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if MISSED_SESSION not in df.columns:
         fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
-    if any(arg is not None for arg in [args.dx_types, args.all_vars, args.any_vars]): # all of these args require api project info
-        project = redcap_common.get_redcap_project('wolfram')
+    if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
+        project = redcap_common.get_redcap_project('wolfram', args.api_password)
         if args.dx_types is not None:
             fields += NON_DX_FIELDS_FOR_DURATION
             fields += redcap_common.get_matching_columns(project.field_names, 'clinichx_dx_') # if doing date calculation, always bring in all dates to prevent possible date-shift errors
     if fields:
-        project = project if project else redcap_common.get_redcap_project('wolfram')
+        project = project if project else redcap_common.get_redcap_project('wolfram', args.api_password)
         df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
 
     # rename common columns after api merge to ensure column names match up
@@ -100,8 +103,7 @@ def format_wolfram_data(required_cols=1, optional_cols=1):
     # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
     if args.dx_types is not None: # explicit None check because empty array is valid
         df = redcap_common.prepare_age_calc(df)
-        dx_types = args.dx_types if args.dx_types else ALL_DX_TYPES
-        for dx_type in dx_types:
+        for dx_type in args.dx_types:
             dx_vars = { 'dx_date': get_dx_column(dx_type, 'date'), 'dx_age': get_dx_column(dx_type, 'age') }
             df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df[redcap_common.SESSION_YEAR] == 2016].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
@@ -112,10 +114,10 @@ def format_wolfram_data(required_cols=1, optional_cols=1):
     df = df[df[redcap_common.SESSION_NUMBER] != -1]
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
-    if args.all_vars:
-        df = redcap_common.check_for_all(df, args.all_vars, project, True)
-    if args.any_vars:
-        df = redcap_common.check_for_any(df, args.any_vars, project, True)
+    if args.all:
+        df = redcap_common.check_for_all(df, args.all, project, True)
+    if args.any:
+        df = redcap_common.check_for_any(df, args.any, project, True)
 
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:

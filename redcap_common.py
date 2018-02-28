@@ -35,18 +35,20 @@ def rename_common_columns(df, renames, reset):
 
 
 # create separate dataframe with demographic/diagnosis info from API export
-def get_redcap_project(project):
-    print('\nRequested action requires API access. Enter access database password to continue.')
+def get_redcap_project(project, password=None):
+    if not password:
+        print('\nRequested action requires API access. Enter access database password to continue.')
+        password = getpass()
 
     try:
         conn_str = (
             r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
             r'DBQ=' + DB_PATH + ';'
-            r'PWD=' + getpass()
+            r'PWD=' + password
         )
         conn = pyodbc.connect(conn_str)
     except pyodbc.Error:
-        stderr.write('Entered incorrect password for database.')
+        stderr.write('Error connecting to access database')
         exit(1)
 
     cursor = conn.cursor()
@@ -216,7 +218,7 @@ def expand(df):
     df.columns = df.columns.str.split('_', n=1, expand=True)
     df = df.stack(level=0).reset_index()  # creates new level and labels it 'level_1' (actually represents session_number)
     return df.rename(columns={'level_0': STUDY_ID, 'level_1': 'session_number'}), non_session_cols
-    
+
 
 def write_results_and_open(df, output_file):
     try:
