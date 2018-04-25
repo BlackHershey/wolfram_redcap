@@ -86,7 +86,7 @@ def get_age(date1, date2):
 
 def prepare_age_calc(df):
     df[SESSION_DATE] = pd.to_datetime(df[SESSION_DATE], errors='coerce')
-    df[DOB] = pd.to_datetime(df.groupby([STUDY_ID])[DOB].transform(lambda x: x.loc[x.first_valid_index()])) # fills in dob for missing years using first-found dob for participant
+    df[DOB] = pd.to_datetime(df.groupby([STUDY_ID])[DOB].transform(lambda x: x.loc[x.first_valid_index()] if x.first_valid_index() is not None else np.nan)) # fills in dob for missing years using first-found dob for participant
     df['session_age'] = df.apply(lambda x: get_age(x[DOB], x[SESSION_DATE]), axis=1)
     return df
 
@@ -122,33 +122,44 @@ def calculate_diasnosis_duration(group, dx_type, dx_age_df):
 
 
 # Filter down to consecutive year data (at least n years) for participants
-# Keeps all consecutive ranges of data for each particpant
-def get_consecutive_years(group, n, keep_all=False):
+
+#  default params (added to make generalizable to other scripts (finding "best" range across variables, optic nerve special condition, etc.)):
+#   - skip, number between years to look for
+#   - keep_all, return all rows that are consecutive (instead of just the first n)
+#   - return_rows, return row numbers in instead of actual rows
+def get_consecutive_years(group, n, skip=1, keep_all=False, return_rows=False):
+    # for REDCap longitudinal studies - there may be a year-agnostic event that should still be included in output,
+    #   but should not be considered when calculating consecutive years
+    #   -- if it exists, shift indices accordingly and add it in before returning
+    year_agnostic_row = pd.isnull(group.iloc[0][SESSION_YEAR])
+
     # remove participant data if they haven't been even involved for n years
-    if len(group) < n:
+    if (len(group) - year_agnostic_row) < n:
         return
 
     # get list of differences in years between each session for a participants
     # identify consecutive duplicates in that list (https://stackoverflow.com/questions/6352425/whats-the-most-pythonic-way-to-identify-consecutive-duplicates-in-a-list)
-    diff_count = [ (k, sum(1 for i in g)) for k,g in groupby(np.diff(group[SESSION_YEAR].values)) ]
+    #   -- only consider rows with non-null years for calculation
+    diff_count = [ (k, sum(1 for i in g)) for k,g in groupby(np.diff(group[pd.notnull(group[SESSION_YEAR])][SESSION_YEAR].astype(int).values)) ]
 
-    index = 0
-    consecutive_rows = []
+    index = 0 + year_agnostic_row
+    consecutive_rows = [] if not year_agnostic_row else [0] # add first row if it's year-agnostic
     prev_consecutive = False
     # iterate through to identify rows that make up consecutive ranges
     for k, count in diff_count:
         if prev_consecutive: # if the previous one was consecutive, we know this one is not consecutive
             index += count-1
             prev_consecutive = False
-        elif k != 1 or count < n-1: # not consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
+        elif k != skip or count < n-1: # not consecutive if the difference between years was greater than 1 or if the range did not meet the specified length
             index += count
         else:
             prev_consecutive = True
             range_end = index + count + 1
-            consecutive_rows += range(index, range_end)
+            consecutive_rows += range(index, range_end, 1)
             index = range_end
 
-    return group.iloc[consecutive_rows[:n],:] if not keep_all else group.iloc[consecutive_rows,:]
+    rows = consecutive_rows[:n] if not keep_all else consecutive_rows
+    return group.iloc[rows,:] if not return_rows else rows
 
 
 def get_matching_columns(columns, pattern):

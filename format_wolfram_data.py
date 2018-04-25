@@ -1,4 +1,3 @@
-import argparse
 import datetime
 import re
 import time
@@ -28,7 +27,7 @@ MISSED_SESSION = 'missed_session'
 ALL_DX_TYPES = ['wfs', 'dm', 'di', 'hearloss', 'oa', 'bladder']
 NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
 
-RENAMES = [None, 'redcap_event_name', None, 'clinic_date', 'wolfram_sessionnumber']
+RENAMES = [None, WFS_CLINIC_YEAR, None, 'clinic_date', WFS_SESSION_NUMBER]
 
 def get_dx_column(dx_type, measure):
     return '_'.join(['clinichx', 'dx', dx_type, measure])
@@ -67,7 +66,7 @@ def format_wolfram_data():
 
     # only create API project if actions require it and data needed is not already present
     project = None
-    fields = [WFS_SESSION_NUMBER,] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
+    fields = [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if MISSED_SESSION not in df.columns:
         fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
     if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
@@ -81,21 +80,12 @@ def format_wolfram_data():
 
     # rename common columns after api merge to ensure column names match up
     df = redcap_common.rename_common_columns(df, RENAMES, False)
-
-    # if clinic year is already in data, drop it - will extract year from redcap_event_name instead
-    # a bit redundant, but makes the diagnosis duration logic more managable (clinic year is only
-    #   specified for years attended, but dx info is in 2016 always - need to be able to indentify this)
-    if WFS_CLINIC_YEAR in df.columns:
-        df.drop([WFS_CLINIC_YEAR], inplace=True, axis=1)
-    df[redcap_common.SESSION_YEAR] = df[redcap_common.SESSION_YEAR].str.extract('(\d{4})', expand=False).astype(int)
-
     num_clinic_years = len(df[redcap_common.SESSION_YEAR].unique()) # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
     if args.consecutive is not None and args.consecutive not in range(2, num_clinic_years + 1):
         parser.error('Consecutive years must be greater than 1 and cannot exceed number of clinic years ({})'.format(num_clinic_years))
 
-    # Temporarily update rows for 2016 that have no session number to be -1 (will remove after calculation)
-    df.loc[(df[redcap_common.SESSION_YEAR] == 2016), [redcap_common.SESSION_NUMBER]] = df.loc[(df[redcap_common.SESSION_YEAR] == 2016), [redcap_common.SESSION_NUMBER]].fillna(-1)
-    # remove rows for sessions not attended (either will have no session number or will have a flag saying they did not attend)
+    df.loc[(df['redcap_event_name'] == 'stable_patient_cha_arm_1'), [redcap_common.SESSION_NUMBER]] = df.loc[(df['redcap_event_name'] == 'stable_patient_cha_arm_1'), [redcap_common.SESSION_NUMBER]].fillna(0)
+    # remove rows for sessions not attended (will have a flag saying they did not attend)
     df = df[pd.notnull(df[redcap_common.SESSION_NUMBER])]
     df = df[pd.isnull(df[MISSED_SESSION])]
     df[redcap_common.SESSION_NUMBER] = df[redcap_common.SESSION_NUMBER].astype(int) # once NANs are gone, we can cast as int (nicer for flatten display)
@@ -106,12 +96,9 @@ def format_wolfram_data():
         for dx_type in args.dx_types:
             dx_vars = { 'dx_date': get_dx_column(dx_type, 'date'), 'dx_age': get_dx_column(dx_type, 'age') }
             df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
-            dx_age_df = df.loc[df[redcap_common.SESSION_YEAR] == 2016].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
+            dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
             df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diasnosis_duration, dx_type, dx_age_df)
-        df = df.drop('session_age', axis=1)
-
-    # after calculation, we can remove the 2016 rows for participants who did not attend (reassigned earlier to session_id -1)
-    df = df[df[redcap_common.SESSION_NUMBER] != -1]
+        df = df.drop(['session_age', 'redcap_event_name'], axis=1)
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
     if args.all:
@@ -131,7 +118,7 @@ def format_wolfram_data():
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
-    if not fields == [WFS_SESSION_NUMBER]: # don't need to go through deletion logic if only field is session number
+    if not fields == [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR]: # don't need to go through deletion logic if only field is session number
         if WFS_SESSION_NUMBER in fields:
             fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
         df = redcap_common.cleanup_api_merge(df, fields)
