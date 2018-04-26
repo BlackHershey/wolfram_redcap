@@ -1,9 +1,5 @@
-import sys
-sys.path.append(r'H:\REDCap Scripts')
-
 from gooey import Gooey, GooeyParser
 
-import argparse
 import pandas as pd
 import redcap_common
 
@@ -84,6 +80,7 @@ def format_track_data():
 
     if not args.expand:
         df = redcap_common.flatten(df) # always reflatten at end, unless expand flag is set
+
 
     if args.transpose:
         df = df.transpose()

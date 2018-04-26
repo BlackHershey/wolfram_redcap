@@ -67,7 +67,7 @@ def merge_api_data(df, project, fields, left_merge_fields):
 
 
 def cleanup_api_merge(df, fields):
-    df = df.drop(fields, axis=1)
+    df = df.drop(fields, axis=1, errors='ignore') # supress error if field already has been removed from df (i.e. dropped because entirely empty)
     df = df.rename(columns={ col + '_original': col for col in fields if col + '_original' in df.columns})
     return df
 
