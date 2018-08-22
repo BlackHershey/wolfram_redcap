@@ -46,14 +46,16 @@ def get_matching_col(row, pattern):
     return [ col for col in row.axes[0].tolist() if re.match(pattern, col) ][0]
 
 
-def gen_subject_file(row, outfolder, question_prefix, card1_bounds, session, demo_cols):
+def gen_subject_file(row, outfolder, question_prefix, card1_bounds, demo_cols):
     study_id = row.name
     print('Processing ', study_id)
+
     if row[list(demo_cols.values())].isnull().any():
         print('Skipping subject {} due to missing age and/or gender'.format(study_id))
         return
 
-    subj_str = '{: >10}{}{}{:02}'.format(study_id, '{}', int(row[demo_cols['gender']]), int(row[demo_cols['age']]))
+    study_id = '_'.join([study_id, row['session_number'].replace('_', '')])
+    subj_str = '{: >10}{}{}{:02}'.format(study_id[:10], '{}', int(row[demo_cols['gender']]), int(row[demo_cols['age']]))
 
     cards = OrderedDict([
         ('01', card1_bounds),
@@ -74,8 +76,7 @@ def gen_subject_file(row, outfolder, question_prefix, card1_bounds, session, dem
 
         line += line_end + '\n'
 
-    session_str = '_' + session if session else ''
-    outfile = '{}{}.CBC'.format(study_id, session_str)
+    outfile = '{}.CBC'.format(study_id)
     with open(join(outfolder, outfile), 'w') as f:
         f.write(line)
     return
@@ -89,11 +90,11 @@ def cbcl_import(file, data_dict, outfolder, question_prefix, card1_bounds=(None,
     keep_qcols = [ col for col in list(cbclq_df.index.values) if col.startswith(question_prefix) and col in df.columns ]
     df.drop(columns=[ col for col in df.columns if col.startswith(question_prefix) and col not in keep_qcols], inplace=True)
 
-    prefix0 = question_prefix.split('_')[0]
-    session =  prefix0 if prefix0 != 'cbcl' else ''
+    # if non-longitudinal, expand the df; otherwise, rename the event column to match expanded naming scheme
+    df = redcap_common.expand(df) if 'redcap_event_name' not in df.columns else df.rename(columns={'redcap_event_name': 'session_number'})
 
     gender_cols = [ col for col in df.columns if 'gender' in col ]
-    age_cols = [ col for col in df.columns if 'age' in col and session in col ]
+    age_cols = [ col for col in df.columns if 'age' in col ]
     if len(gender_cols) < 1 or len(age_cols) < 1:
         sys.stderr.write('Age and gender columns must be included in REDCap export.')
         sys.exit(2)
@@ -101,7 +102,7 @@ def cbcl_import(file, data_dict, outfolder, question_prefix, card1_bounds=(None,
 
     df = df[df[keep_qcols].sum(axis=1) != 0] # get rid of empty rows (all nan or 0)
     print(df)
-    df.apply(gen_subject_file, args=(outfolder, question_prefix, card1_bounds, session, demo_cols), axis=1)
+    df.apply(gen_subject_file, args=(outfolder, question_prefix, card1_bounds, demo_cols), axis=1)
 
 
 @Gooey()
