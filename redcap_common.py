@@ -11,7 +11,7 @@ from subprocess import Popen
 from sys import exit, stderr
 
 # API constants
-DB_PATH = 'H:/REDCap Scripts/api_tokens.accdb'
+DB_PATH = r'//neuroimage.wustl.edu/nil/hershey/H/REDCap Scripts/api_tokens.accdb'
 URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
 
 STUDY_ID = 'study_id'
