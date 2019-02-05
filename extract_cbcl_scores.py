@@ -5,8 +5,9 @@ import pandas as pd
 import re
 import redcap_common
 
+from datetime import datetime
 from gooey import Gooey, GooeyParser
-from os import listdir
+from os import listdir, stat
 from os.path import join, splitext
 from subprocess import call
 
@@ -20,7 +21,7 @@ DSM_SCALE = [ 'affecprob', 'anxprob', 'somprob', 'adhdprob', 'opdefprob', 'condp
 
 ALL_MEASURES = COMP_SCALE1 + COMP_SCALE2 + SYN_SCALE + INT_EXT_PROBS + DSM_SCALE
 
-def extract_scores(input_folder, output_file, study_id_var, subject_prefix, subjects=[], non_long=False):
+def extract_scores(input_folder, output_file, study_id_var, subject_prefix, subjects=[], from_date=None, non_long=False):
 	filename_format = '(({}\d+)_(\w+).\w+)'.format(subject_prefix) # get all the converted score reports (capturing the filename and the visit type)
 	all_files = [ re.search(filename_format, f, flags=re.IGNORECASE) for f in listdir(input_folder) ]
 	all_files = [ result.groups() for result in all_files if result ]
@@ -31,6 +32,8 @@ def extract_scores(input_folder, output_file, study_id_var, subject_prefix, subj
 	for file_info in pdf_files:
 		result = {}
 		if subjects and file_info[1] not in subjects:
+			continue
+		if from_date and datetime.fromtimestamp(stat(join(input_folder, file_info[0])).st_mtime) < from_date:
 			continue
 
 		root, ext = splitext(file_info[0])
@@ -91,6 +94,7 @@ def parse_args():
 
 	optional_group = parser.add_argument_group('Optional Arguments', gooey_options={'columns': 1})
 	optional_group.add_argument('-s', '--subjects', nargs='+', help='Space-separated list of subject ids to run for (if blank, runs all in folder)')
+	optional_group.add_argument('--from_date', type=lambda d: datetime.strptime(d, '%Y-%m-%d'), widget='DateChooser', help='Process only files that were modified on/after specified date')
 	optional_group.add_argument('--flatten_sessions', action='store_true', help='flatten session names (only needed if REDCap is set up non-longitudinally)')
 
 	return parser.parse_args()
@@ -98,4 +102,4 @@ def parse_args():
 
 if __name__ == '__main__':
 	args = parse_args()
-	extract_scores(args.folder, args.outfile, args.study_id_var, args.subject_prefix, args.subjects, args.flatten_sessions)
+	extract_scores(args.folder, args.outfile, args.study_id_var, args.subject_prefix, args.subjects, args.from_date, args.flatten_sessions)

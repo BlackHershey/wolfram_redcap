@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import re
+import sys
 
 from collections import OrderedDict
 from gooey import Gooey, GooeyParser
@@ -96,7 +97,7 @@ def cbcl_import(file, data_dict, outfolder, age_col):
     data_dict_df = pd.read_csv(data_dict, index_col=0)
 
     # construct map of card bound variables
-    #   var_map example: { 'q1': [ 's1s1_cbcl_q1', 's2_cbcl_q2'], 'q58': ['s1_cbcl_q58', 's2_cbcl_q58'] }
+    #   var_map example: { 'q1': [ 's1_cbcl_q1', 's2_cbcl_q2'], 'q58': ['s1_cbcl_q58', 's2_cbcl_q58'] }
     var_map = { v: data_dict_df.index[(data_dict_df['Field Label'].str.contains(k, na=False)) & (data_dict_df['Field Type'] == 'radio')].tolist() for k,v in var_search_map.items() }
     var_map = { k: v for k,v in var_map.items() if v }
 

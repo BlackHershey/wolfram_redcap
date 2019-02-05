@@ -1,27 +1,39 @@
 import argparse
 import pandas as pd
+import re
 import redcap_common
 
+from gooey import Gooey, GooeyParser
 from os.path import basename, splitext
 
-def extract_form_fields():
-    parser = argparse.ArgumentParser(description='Extracts certain fields from a REDCap data export')
-    parser.add_argument('input_file', help='exported file to extract fields from')
-    parser.add_argument('fields', nargs='+', help='fields to extract from data export')
-    parser.add_argument('-m', '--merge', metavar='merge_with_file', help='merge extracted fields with data from specified file')
-    parser.add_argument('-o', '--output_file', help='file (csv) to write results to (default: <input_file>_extract.csv or <merge_with_file>_merged.csv)')
-    args = parser.parse_args()
+def extract_form_fields(input_file, fields, merge=None, output_file=None):
+    df = pd.read_csv(input_file, index_col=[0,1])
+    columns = [ col for field in fields for col in df.columns if re.match(field, col) ]
+    df = df[columns]
 
-    df = pd.read_csv(args.input_file, index_col=[0,1])[args.fields]
-
-    default_output = splitext(basename(args.input_file))[0] + '_extract.csv'
-    if args.merge:
-        merge_df = pd.read_csv(args.merge, index_col=[0,1])
+    default_output = splitext(basename(input_file))[0] + '_extract.csv'
+    if merge:
+        merge_df = pd.read_csv(merge, index_col=[0,1])
         df = pd.concat([merge_df, df], axis=1)
-        default_output = splitext(basename(args.merge))[0] + '_merged.csv'
+        default_output = splitext(basename(merge))[0] + '_merged.csv'
 
-    output_file = args.output_file if args.output_file and splitext(args.output_file)[1] == 'csv' else default_output
+    output_file = output_file if output_file and splitext(output_file)[1] == 'csv' else default_output
     redcap_common.write_results_and_open(df, output_file)
 
+@Gooey()
+def parse_args():
+    parser = GooeyParser(description='Extracts certain fields from a REDCap data export')
 
-extract_form_fields()
+    required_group = parser.add_argument_group('Required Arguments', gooey_options={'columns': 1})
+    required_group.add_argument('--input_file', required=True, widget='FileChooser', help='exported file to extract fields from')
+    required_group.add_argument('--fields', required=True, nargs='+', help='Space-separated list of fields to extract from data export (can be exact column names or regexes)')
+
+    optional_group = parser.add_argument_group('Optional Arguments', gooey_options={'columns': 1})
+    optional_group.add_argument('-m', '--merge', widget='FileChooser', metavar='merge_with_file', help='merge extracted fields with data from specified file')
+    optional_group.add_argument('-o', '--output_file', widget='FileChooser', help='file (csv) to write results to (default: <input_file>_extract.csv or <merge_with_file>_merged.csv)')
+
+    return parser.parse_args()
+
+if __name__ == '__main__':
+    args = parse_args()
+    extract_form_fields(args.input_file, args.fields, args.merge, args.output_file)

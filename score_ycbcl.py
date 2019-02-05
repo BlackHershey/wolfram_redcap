@@ -54,8 +54,8 @@ def score_category(row, category, category_map, col_prefix, cols):
         col_prefix = 'y' if not col_prefix else col_prefix
         borderline_col = borderline_col_template.format(col_prefix, checkbox)
         clinical_col = clinical_col_template.format(col_prefix, checkbox)
-        row[borderline_col] = 1 if row[tscore_col] >= cbcl.borderline else 0
         row[clinical_col] = 1 if row[tscore_col] >= cbcl.clinical else 0
+        row[borderline_col] = 1 if (row[tscore_col] >= cbcl.borderline and not row[clinical_col]) else 0
 
     return row
 
@@ -82,8 +82,10 @@ def score_empirical_df(row, col_prefix):
 def score_ycbcl(outfile, infile=None, session=None):
     index_col = 0 if session else [0,1]
     df = pd.read_csv(infile, index_col=index_col)
-    ybcl_cols = [ col for col in df.columns if 'ycbcl' in col ]
-    df = df[df['ycbcl_age_5_complete'] != 0] if 'ycbcl_age_5_complete' in df.columns else df.dropna(subset=ybcl_cols, how='all')
+    ycbcl_cols = [ col for col in df.columns if 'ycbcl_q' in col ]
+    if 'ybcl_age_5_complete' in df.columns:
+        df = df[df['ycbcl_age_5_complete'] != 0]
+    df = df.dropna(subset=ycbcl_cols, how='all')
 
     all_categories = internal + external + other + dsm
 
