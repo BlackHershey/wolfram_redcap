@@ -14,15 +14,15 @@ def extract_form_fields(input_file, fields, merge=None, output_file=None):
     default_output = splitext(input_file)[0] + '_extract.csv'
     if merge:
         merge_df = pd.read_csv(merge, index_col=[0,1])
-        df = merge_df.join(df, how='outer', rsuffix='_right')
-        shared_cols = [ col for col in df if col.endswith('_right') ]
+        df = merge_df.join(df, how='outer', rsuffix='_duplicate')
+        shared_cols = [ col for col in df if col.endswith('_duplicate') ]
         for col in shared_cols:
             orig_col = col.rsplit('_', 1)[0]
             df[orig_col] = df[orig_col].fillna(df[col])
         df = df.drop(columns=shared_cols)
         default_output = splitext(merge)[0] + '_merged.csv'
 
-    output_file = output_file if output_file and splitext(output_file)[1] == 'csv' else default_output
+    output_file = output_file if output_file and splitext(output_file)[1] == '.csv' else default_output
     redcap_common.write_results_and_open(df, output_file)
 
 @Gooey()
