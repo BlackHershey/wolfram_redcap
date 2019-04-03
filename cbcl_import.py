@@ -20,6 +20,13 @@ var_search_map = {
     '113': 'q113'
 }
 
+def get_data_dict_options_map(df, data_dict_df, variable):
+    choices_str = data_dict_df.xs(variable)['Choices, Calculations, OR Slider Labels']
+    options = [ choice.split(',', 1) for choice in choices_str.split('|') ]
+    options = [ opt for opt in options if opt != ['']] # handle extra '|' at end of choice specification
+    return { int(option[0].strip()): option[-1].strip() for option in options } # map number to label
+
+
 def card1_specific_changes(card1):
     incorrectly_numbered = [ col for col in card1.axes[0].tolist() if col.startswith('cbcl_number') or col == 'cbcl_times_a_week_friends' ]
     na_5only = [ col for col in card1.axes[0].tolist() if col.startswith('cbcl_other_sub') ]
@@ -98,8 +105,9 @@ def cbcl_import(file, data_dict, outfolder, age_col):
 
     # construct map of card bound variables
     #   var_map example: { 'q1': [ 's1_cbcl_q1', 's2_cbcl_q2'], 'q58': ['s1_cbcl_q58', 's2_cbcl_q58'] }
-    var_map = { v: data_dict_df.index[(data_dict_df['Field Label'].str.contains(k, na=False)) & (data_dict_df['Field Type'] == 'radio')].tolist() for k,v in var_search_map.items() }
+    var_map = { v: [ x for x in data_dict_df.index[(data_dict_df['Field Label'].str.contains(k, na=False)) & (data_dict_df['Field Type'] == 'radio')].tolist() if x in df.columns ] for k,v in var_search_map.items() }
     var_map = { k: v for k,v in var_map.items() if v }
+    print(var_map)
 
     gender_cols = [ col for col in df.columns if 'gender' in col ]
     age_cols = [ col for col in df.columns if re.search(age_col, col) ]
@@ -107,15 +115,21 @@ def cbcl_import(file, data_dict, outfolder, age_col):
         sys.stderr.write('Age and gender columns must be included in REDCap export.')
         sys.exit(2)
 
+    # use data dict to ensure male/female are mapped 1/2, respectively
+    gender_col = gender_cols[0]
+    gender_map = get_data_dict_options_map(df, data_dict_df, gender_col)
+    df[gender_col] = df[gender_col].replace({ k: (1 if v.lower() in ['male', 'boy'] else 2) for k,v in gender_map.items() })
+
     # convert var_map to be a list of dicts (where each dict has same set of keys, but each with one of the lists values)
     #   needed to handle non-longitudal REDCap structure which will have multiple matching variables
     #   num_var_list structure: [ { 'q1': 's1_cbcl_q1', 'q58': 's1_cbcl_q58' }, {'q1': 's2_cbcl_q1', 'q58': 's2_cbcl_q58' } ]
     num_var_lists = len(var_map['q1'])
+    print(num_var_lists)
     var_map_list = [ {} for i in range(num_var_lists) ]
     for k,v in var_map.items():
         for i in range(num_var_lists):
             var_map_list[i][k] = v[i]
-            var_map_list[i]['gender'] = gender_cols[0]
+            var_map_list[i]['gender'] = gender_col
             var_map_list[i]['age'] = age_cols[i]
 
     for i, map in enumerate(var_map_list):
