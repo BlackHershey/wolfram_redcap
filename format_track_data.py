@@ -79,6 +79,8 @@ def format_track_data():
     df = df.set_index([TRACK_STUDY_ID, redcap_common.SESSION_NUMBER])
 
     if not args.expand:
+        non_session_cols = { col: 's1_' + col for col in df.columns if not re.match('s\d_', col) }
+        df = df.rename(columns=non_session_cols)
         df = redcap_common.flatten(df) # always reflatten at end, unless expand flag is set
 
 
