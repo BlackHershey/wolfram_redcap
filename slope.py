@@ -7,22 +7,30 @@ from gooey import Gooey, GooeyParser
 
 plt.rcParams['axes.grid'] = True
 
-def plot_slope(group, x_var, outdir, groupby, save=True):
-    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True)
+def plot_slope(group, x_var, outdir, groupby, save=True, plot_rmse=False):
+    nrows = 2 if plot_rmse else 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=1, sharex=True, figsize=(12,8), squeeze=False)
 
     grouped = group.groupby(groupby)
     for g, data in grouped:
-        marker_sizes = [ 2000* (n / sum(data['count'].values)) for n in data['count'].values ]
-        axes[0].scatter(x_var, 'slope', s=marker_sizes, label=g, data=data)
-        axes[1].scatter(x_var, 'rmse', s=marker_sizes, label=g, data=data)
+        print(g)
+        marker_sizes = [ 20*n  for n in data['count'].values ]
+        axes[0][0].scatter(x_var, 'slope', s=marker_sizes, label=g, data=data)
+        if plot_rmse:
+            axes[1][0].scatter(x_var, 'rmse', s=marker_sizes, label=g, data=data)
+        else:
+            axes[0][0].errorbar(x_var, 'slope', yerr='rmse', ls='None', elinewidth=1, capsize=1, data=data, label=None)
 
     if len(grouped) > 1:
-        axes[0].legend()
+        axes[0][0].legend()
 
-    axes[0].set_title(group.name)
-    axes[0].set_ylabel('Raw Slope')
-    axes[1].set_ylabel('RMSE')
-    axes[1].set_xlabel(x_var.replace('_', ' ').title())
+    axes[0][0].set_title(group.name)
+    axes[0][0].set_xlabel('s1_age')
+    axes[0][0].set_ylabel('Raw Slope')
+
+    if plot_rmse:
+        axes[1][0].set_ylabel('RMSE')
+        axes[1][0].set_xlabel(x_var.replace('_', ' ').title())
 
     if save:
         plt.savefig(os.path.join(outdir, '{}_raw_slopes.png'.format(group.name)))
@@ -30,7 +38,7 @@ def plot_slope(group, x_var, outdir, groupby, save=True):
         plt.show()
 
 
-def calc_slope(infile, x_var, outfile=None, variables=None, groupby=None, save_figs=True):
+def calc_slope(infile, x_var, outfile=None, variables=None, groupby=None, save_figs=True, plot_rmse=False):
     df = pd.read_csv(infile, index_col=[0,1])
 
     drop_cols = []
@@ -44,14 +52,19 @@ def calc_slope(infile, x_var, outfile=None, variables=None, groupby=None, save_f
     if not variables:
         variables = [col for col in df.columns if col not in additional_cols ]
 
+    print(variables)
     df = df.dropna(how='all', subset=variables)
+
+    print(df)
 
     results = []
     for g, data in df.groupby(level=0):
+        print(g)
         for var in variables:
             var_data = data[pd.notnull(data[var])]
 
             if len(var_data) <= 1:
+                results.append([g, np.nan, np.nan, var, np.nan, np.nan, np.nan, np.nan])
                 continue
 
             coeffs, resids, _, _, _ = np.polyfit(var_data[x_var], var_data[var], 1, full=True)
@@ -67,7 +80,7 @@ def calc_slope(infile, x_var, outfile=None, variables=None, groupby=None, save_f
     if not outfile:
         outfile = '{}_slopes.csv'.format(os.path.splitext(infile)[0])
 
-    slope_df.groupby('variable').apply(plot_slope, x_var, os.path.dirname(outfile), groupby, save_figs)
+    slope_df.groupby('variable').apply(plot_slope, x_var, os.path.dirname(outfile), groupby, save_figs, plot_rmse)
 
     slope_df = slope_df.drop(columns=drop_cols)
     if groupby in slope_df.columns:
@@ -89,6 +102,7 @@ def parse_args():
     optional.add_argument('--variables', nargs='+', help='variables to calculate slope for (default is all in file -- other than x_var and sub/session identifiers))')
     optional.add_argument('--groupby', help='column name to use for labelling by group in plots')
     optional.add_argument('--show_only', action='store_true', help='only show the graphs (default is to save them to file)')
+    optional.add_argument('--plot_rmse', action='store_true', help='plot RMSE as separate plot (default=error bars)')
 
     return parser.parse_args()
 
@@ -96,4 +110,4 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    calc_slope(args.infile, args.x_var, args.outfile, args.variables, args.groupby, not args.show_only)
+    calc_slope(args.infile, args.x_var, args.outfile, args.variables, args.groupby, not args.show_only, args.plot_rmse)
