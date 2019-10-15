@@ -44,8 +44,11 @@ def get_session_number(pin):
 
 
 def extract_id_and_session(df):
-	df['session_number'] = df['newt_id'].apply(get_session_number)
-	df['newt_id'] = df['newt_id'].apply(lambda x: re.match('(NEWT *\d{3}?)', x, flags=re.IGNORECASE).group().upper().replace(' ', ''))
+	# df['session_number'] = df['newt_id'].apply(get_session_number)
+	# df['newt_id'] = df['newt_id'].apply(lambda x: re.match('(NEWT *\d{3}?)', x, flags=re.IGNORECASE).group().upper().replace(' ', ''))
+	df[['newt_id', 'session_number']] = df['newt_id'].str.extract('(\w* ?\d+)(?:_| )(s\d)', flags=re.IGNORECASE)
+	df['newt_id'] = df['newt_id'].apply(lambda x: x.replace(' ', '').upper())
+	df['session_number'] = df['session_number'].fillna('s1').str.lower()
 	return df
 
 
