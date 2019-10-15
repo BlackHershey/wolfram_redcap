@@ -53,13 +53,14 @@ def nih_toolbox_import(exports_folder, subjects):
 	result = None
 	exports = [ f for f in listdir(exports_folder) if f.endswith('.csv') ]
 	for export in exports:
+		print('Processing:', export)
 		df = pd.read_csv(join(exports_folder, export)).dropna(how='all')
 		if UNADJUSTED not in df.columns:
 			continue
 
 		df = df.rename(columns={'PIN': 'newt_id',  'RawScore': 'raw', 'TScore': 'tscore'})
-		parent_df = df[df['newt_id'].str.contains('NEWT *\d{3} *Parent$', flags=re.IGNORECASE)]
-		subject_df = df[df['newt_id'].str.contains('NEWT *\d{3} *(Child)*$', flags=re.IGNORECASE)]
+		parent_df = df[df['newt_id'].str.contains('parent', flags=re.IGNORECASE)]
+		subject_df = df[~df['newt_id'].isin(parent_df['newt_id'])]
 
 		if not parent_df.empty:
 			parent_df = replace_variables(parent_df, parent_vars)
@@ -76,12 +77,17 @@ def nih_toolbox_import(exports_folder, subjects):
 		export_df = pd.concat([subject_df, parent_df], axis=0)
 		result = pd.concat([result, export_df], axis=0)
 
+	print('Formatting...')
+
 	if subjects:
 		result = result[result['newt_id'].isin(subjects)]
 	result.rename(columns={UNADJUSTED: 'unadj', ADJUSTED: 'ageadj'}, inplace=True)
 	result = result.drop_duplicates(subset=['newt_id', 'Inst', 'unadj'], keep='last')
 	result.set_index(['newt_id', 'session_number', 'Inst'], inplace=True)
-	result = result[['raw', 'tscore', 'unadj', 'ageadj']]
+	score_cols = ['raw', 'tscore', 'unadj', 'ageadj']
+	result = result[score_cols]
+
+	result = result.dropna(how='all', subset=score_cols)
 	result = redcap_common.flatten(redcap_common.flatten(result))
 
 	# perform renames - no session numbers and changes suffixes for parent iq columns, cog_crystal order change for ageadj column,
