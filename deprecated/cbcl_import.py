@@ -71,7 +71,7 @@ def gen_subject_file(row, outfolder, var_map):
         print('Skipping subject {} due to missing age and/or gender'.format(study_id))
         return
 
-    subj_str = '{: >10}{}{}{:02}'.format(study_id[:10], '{}', int(row[var_map['gender']]), int(row[var_map['age']]))
+    subj_str = '{: >10}{}{}{:02}'.format(study_id[:9] + study_id[-1], '{}', int(row[var_map['gender']]), int(row[var_map['age']]))
 
     cards = OrderedDict([
         ('01', (var_map['num_sports'] if 'num_sports' in var_map else None, var_map['acad_prob'] if 'acad_prob' in var_map else None)),
