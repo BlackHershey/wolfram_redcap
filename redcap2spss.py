@@ -9,13 +9,15 @@ def parse_args():
     parser = GooeyParser(description='Converts data in REDCap format (one row per session) to SPSS format (one row per subject) and vice versa')
     parser.add_argument('input_file', widget='FileChooser', help='csv file (full path) to be formatted (first column should contain subject ids)')
     parser.add_argument('output_file', help='csv file (full path) to store formatted data (if file does not exist, it will be created)')
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
+        parser.error('Input and output files must be of type csv')
+
+    return args
 
 
 def redcap2spss(input_file, output_file):
-    if not input_file.endswith('.csv') or not output_file.endswith('.csv'):
-        parser.error('Input and output files must be of type csv')
-
     df = redcap_common.create_df(input_file)
 
     if df.shape[0] == len(df.iloc[:, 0].unique()): # if the row count is the same as the unique indentifiers, assume spss to redcap
@@ -28,7 +30,7 @@ def redcap2spss(input_file, output_file):
         df= df.set_index(df.columns[0])
     else: # assume redcap to spss
         prefix = 's' if df[df.columns[1]].dtype == 'int64' else ''
-        df = redcap_common.flatten(df.set_index([df.columns[0], df.columns[1]]), prefix=prefix)
+        df = redcap_common.flatten(df.set_index([df.columns[0], df.columns[1]]), sort=True, prefix=prefix)
 
     redcap_common.write_results_and_open(df, output_file)
 
