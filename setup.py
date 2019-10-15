@@ -17,15 +17,12 @@ executables = [
 	Executable('format_track_data.py', base=base),
 	Executable('nih_toolbox_import.py', base=base),
 	Executable('dot_dbs_import.py', base=base),
-	Executable('cbcl_import.py', base=base),
-	Executable('score_ycbcl.py', base=base),
     Executable('cbcl_aseba_import.py', base=base),
 	Executable('cbcl_format_scores.py', base=base),
-	Executable('extract_cbcl_scores.py', base=base),
 	Executable('redcap2spss.py', base=base),
 	Executable('extract_form_fields.py', base=base),
-	Executable('slope.py', base=base),
-    Executable('../tools/extract_and_combine_volbrain.py', base=base)
+	Executable('tools/slope.py', base=base),
+    Executable('tools/extract_and_combine_volbrain.py', base=base)
 ]
 
 setup(
