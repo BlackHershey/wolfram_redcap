@@ -45,6 +45,7 @@ def format_wolfram_data():
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
     optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
+    optional.add_argument('--old-db', action='store_true', help='whether data was sourced from old Wolfram database')
 
     variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
     variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
@@ -63,6 +64,7 @@ def format_wolfram_data():
     # create dataframe from REDCap data
     df = redcap_common.create_df(args.input_file)
     df = df[df[WFS_STUDY_ID].str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
+    num_clinic_years = len(df['redcap_event_name'].unique())-1  # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
 
     # only create API project if actions require it and data needed is not already present
     project = None
@@ -75,12 +77,13 @@ def format_wolfram_data():
             fields += NON_DX_FIELDS_FOR_DURATION
             fields += redcap_common.get_matching_columns(project.field_names, 'clinichx_dx_') # if doing date calculation, always bring in all dates to prevent possible date-shift errors
     if fields:
-        project = project if project else redcap_common.get_redcap_project('wolfram', args.api_password)
+        redcap_project_key = 'itrack' if not args.old_db else 'wolfram'
+        project = project if project else redcap_common.get_redcap_project(redcap_project_key, args.api_password)
         df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
 
     # rename common columns after api merge to ensure column names match up
     df = redcap_common.rename_common_columns(df, RENAMES, False)
-    num_clinic_years = len(df[redcap_common.SESSION_YEAR].unique()) # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
+
     if args.consecutive is not None and args.consecutive not in range(2, num_clinic_years + 1):
         parser.error('Consecutive years must be greater than 1 and cannot exceed number of clinic years ({})'.format(num_clinic_years))
 
