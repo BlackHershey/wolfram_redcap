@@ -18,8 +18,8 @@ FORM_LUT = {
         'fname_id': 3001
     },
     'ycbcl': {
-        'FormInstrumentId': '',
-        'fname_id': 0
+        'FormInstrumentId': '35aebf67-0ec4-407a-a240-1966a4852031',
+        'fname_id': 6001
     }
 }
 
