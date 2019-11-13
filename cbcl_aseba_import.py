@@ -66,15 +66,14 @@ def write_json(row, var_lut, outdir, form_ins_id):
     return
 
 
-def gen_import_file(datafile, study_name, form_type, outdir):
+def gen_import_file(datafile, varfile, form_type, outdir, expand=False):
     df = pd.read_csv(datafile, dtype="object")
-    varfile = os.path.join(STATIC_FOLDER, '{}_{}_column_map.csv'.format(study_name, form_type))
     change_df = pd.read_csv(varfile)
     json_df = pd.read_csv(JSON_MAPFILE)
     change_df = change_df.merge(json_df, left_on='aseba_var', right_on='aseba_var')
 
     df.columns.values[0] = redcap_common.STUDY_ID
-    if study_name in ['NEWT']:
+    if expand:
         df, non_session_cols = redcap_common.expand(df.set_index(redcap_common.STUDY_ID))
         stable_cols = list(non_session_cols.keys())
     else:
@@ -92,7 +91,7 @@ def gen_import_file(datafile, study_name, form_type, outdir):
     df = df.dropna(how='all', subset=[col for col in df.columns if 'cbcl' in col])
     df = replace_values(df, change_df, index_col='redcap_var')
 
-    outroot = '{}_{}'.format(study_name, form_type)
+    outroot = 'aseba_import'
     outpath = os.path.join(outdir, outroot)
     if not os.path.exists(outpath):
         os.mkdir(outpath)
@@ -105,16 +104,31 @@ def gen_import_file(datafile, study_name, form_type, outdir):
 
     shutil.make_archive(outpath, 'zip', os.path.dirname(outpath), outroot)
 
+
 @Gooey()
 def parse_args():
     parser = GooeyParser(description='Format redcap CBCL export for ASEBA import')
-    parser.add_argument('--redcap_export', required=True, widget='FileChooser', help='Demographics + CBCL export from REDCap')
-    parser.add_argument('--study_name', required=True, choices=['NEWT', 'NT'])
-    parser.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
-    parser.add_argument('--outdir', widget='DirChooser', required=True, help='where to store output zip')
-    return parser.parse_args()
+    required = parser.add_argument_group('Required Arguments')
+    required.add_argument('--redcap_export', required=True, widget='FileChooser', help='Demographics + CBCL export from REDCap')
+    required.add_argument('--study_name', required=True, choices=['NEWT', 'NT', 'other'])
+    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
+    required.add_argument('--outdir', widget='DirChooser', required=True, help='where to store output zip')
 
+    other = parser.add_argument_group('Other study options (can ignore if using named study)', gooey_options={'columns':1})
+    other.add_argument('--varfile', widget='FileChooser', help='csv file with REDCap to ASEBA mapping (see H:/REDCap Scripts/static/*cbcl_column_map.csv for examples)')
+    other.add_argument('--wide', action='store_true', help='if REDCap export contains multiple sessions per row (vs each session on own line)')
+
+    args = parser.parse_args()
+
+    if args.study_name == 'other' and not args.varfile:
+        parser.error('Must supply varfile if not using named study')
+
+    return args
 
 if __name__ == '__main__':
     args = parse_args()
-    gen_import_file(args.redcap_export, args.study_name, args.form_type, args.outdir)
+
+    varfile = os.path.join(STATIC_FOLDER, '{}_{}_column_map.csv'.format(args.study_name, args.form_type)) if not args.varfile else args.varfile
+    expand = args.wide or args.study_name in ['NEWT']
+
+    gen_import_file(args.redcap_export, varfile, args.form_type, args.outdir, expand)

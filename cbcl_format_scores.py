@@ -2,10 +2,10 @@ import json
 import numpy as np
 import os
 import pandas as pd
+import redcap_common
 import shutil
 
 from gooey import Gooey, GooeyParser
-from redcap_common import flatten
 from wfs_db_migration import replace_values
 from zipfile import ZipFile
 
@@ -18,10 +18,8 @@ STUDY_ID_MAP = {
     'NT': 'demo_study_id'
 }
 
-
-def gen_import_file(datafile, study_name, form_type):
+def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
     df = pd.read_excel(datafile)
-    varfile = os.path.join(STATIC_FOLDER, VARFILE_TEMPLATE.format(study_name, form_type))
     change_df = pd.read_csv(varfile)
 
     # Remove irrelevant columns
@@ -46,13 +44,14 @@ def gen_import_file(datafile, study_name, form_type):
         df[row['redcap_var']] = row['fill_value']
 
     # Extract study_id/redcap_event_name and rename
-    index_cols = [STUDY_ID_MAP[study_name], 'redcap_event_name']
+    study_id_col = STUDY_ID_MAP[study_name] if study_name in STUDY_ID_MAP else 'record_id'
+    index_cols = [study_id_col, 'redcap_event_name']
     df[index_cols] = df[ASEBA_ID].str.split('_', 1, expand=True)
     df = df.drop(columns=[ASEBA_ID]).set_index(index_cols)
 
     # Flatten dataframe for multi-session databases NOT in longitudinal format
-    if study_name in ['NEWT']:
-        df = flatten(df)
+    if flatten:
+        df = redcap_common.flatten(df)
 
     outroot = os.path.splitext(datafile)[0]
     df.to_csv(outroot + '_import.csv')
@@ -61,12 +60,26 @@ def gen_import_file(datafile, study_name, form_type):
 @Gooey()
 def parse_args():
     parser = GooeyParser(description='Format ASEBA score export for REDCap import')
-    parser.add_argument('--aseba_export', required=True, widget='FileChooser', help='Excel scores export from ASEBA')
-    parser.add_argument('--study_name', required=True, choices=['NEWT', 'NT'])
-    parser.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
-    return parser.parse_args()
 
+    required = parser.add_argument_group('Required arguments')
+    required.add_argument('--aseba_export', required=True, widget='FileChooser', help='Excel scores export from ASEBA')
+    required.add_argument('--study_name', required=True, choices=['NEWT', 'NT', 'other'])
+    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
+
+    other = parser.add_argument_group('Other study options (can ignore if using named study)', gooey_options={'columns':1})
+    other.add_argument('--varfile', widget='FileChooser', help='csv file with REDCap to ASEBA mapping (see H:/REDCap Scripts/static/*cbcl_column_map.csv for examples)')
+    other.add_argument('--wide', action='store_true', help='if REDCap has multiple sessions per row (vs each session on own line)')
+    args = parser.parse_args()
+
+    if args.study_name == 'other' and not args.varfile:
+        parser.error('Must supply varfile if not using named study')
+
+    return args
 
 if __name__ == '__main__':
     args = parse_args()
-    gen_import_file(args.aseba_export, args.study_name, args.form_type)
+
+    varfile = os.path.join(STATIC_FOLDER, '{}_{}_column_map.csv'.format(args.study_name, args.form_type)) if not args.varfile else args.varfile
+    flatten = args.wide or args.study_name in ['NEWT']
+
+    gen_import_file(args.aseba_export, varfile, args.study_name, args.form_type, flatten)
