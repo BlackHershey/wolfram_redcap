@@ -8,55 +8,51 @@ from glob import glob
 from gooey import Gooey, GooeyParser
 from zipfile import ZipFile
 
-def get_processed_jobs(report):
-    df = pd.read_csv(report, index_col=[0,1,2,3])
-    df.columns = df.columns.str.split(' - ', n=1, expand=True)
-    df = df.stack(level=1).reset_index()
-    return dict(zip(df['job_id'], df['level_4']))
+def get_processed_jobs(outdir):
+    job_map = {}
+    reports = glob(os.path.join(outdir, '*_report.csv'))
+    for report in reports:
+        df = pd.read_csv(report)
+        job_map.update(dict(zip(df['job_id'], df['type'])))
+    return job_map
 
 
-def save_report(df, outfile, redo):
-    if redo and os.path.exists(outfile):
-        old_df = pd.read_csv(outfile).set_index(['Subject', 'Patient ID', 'Age', 'Sex', 'type']).sort_index()
-        df = pd.concat([old_df, df])
-        df = df[~df.index.duplicated(keep='last')] # drop duplicate indexes + take most recently appended
-    df.to_csv(outfile)
-    return df
-
-
-def extract_and_combine(indir, outdir, patid_pattern, rename=False, redo=False, remove_zips=False):
+def extract_and_combine(indir, outdir, patid_pattern, rename=False, redo=False):
     # extract/rename files in volbrain zips
     job_search = re.compile('(job\d{6})')
 
     patid_search = re.compile('({})'.format(patid_pattern), flags=re.IGNORECASE)
 
-    zips = glob(os.path.join(args.indir, '*.zip'))
+    zips = glob(os.path.join(indir, '*.zip'))
 
     native_zips = [ f for f in zips if 'native' in f ]
     mni_zips = [ f for f in zips if f not in native_zips ]
 
     # create map of job id to report type in case mni has already been processed but native has not
-    master_report = os.path.join(outdir, 'volbrain_master_report.csv')
-    job_map = get_processed_jobs(master_report) if os.path.exists(master_report) else {}
+    job_map = get_processed_jobs(outdir)
 
     report_dfs = {}
-    for zip_file in mni_zips + native_zips: # make sure we're always iterative over the mni ones first (need lookup table for report type)
-        print('Processing ', zip_file)
-
+    for zip_file in mni_zips + native_zips: # make sure we're always iterating over the mni ones first (need lookup table for report type)
         search_res = patid_search.search(zip_file)
         if not search_res:
-            print('ERROR: no match found for pattern: ', args.patid_pattern)
+            print('ERROR: no match found for pattern: ', patid_pattern)
             continue
         patid = search_res.group(1)
 
         folder = 'native' if 'native' in zip_file else 'mni'
 
         job_id = job_search.search(zip_file).group(1)
-        if not args.redo and job_id in job_map:
-            print('Already processed job:', job_id)
-            continue
 
-        target_dir = os.path.join(args.outdir, patid, folder)
+        # determine if zip file has already been processed
+        if not redo and job_id in job_map:
+            dest = os.path.join(outdir, job_map[job_id], patid, folder)
+            if os.path.exists(os.path.join(outdir, job_map[job_id], patid, folder)): # lookup dest by job id (must already be in map)
+                print('Already processed:', job_id, patid, folder)
+                continue
+
+        print('Processing ', zip_file)
+
+        target_dir = os.path.join(outdir, 'temp', patid, folder)
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
@@ -90,46 +86,39 @@ def extract_and_combine(indir, outdir, patid_pattern, rename=False, redo=False, 
                 report_dfs[report_type] = []
             report_dfs[report_type].append(temp_df)
 
-        dest = os.path.join(args.outdir, patid, job_map[job_id], folder)
+        dest = os.path.join(outdir, job_map[job_id], patid, folder)
         if os.path.exists(dest):
-            shutil.rmtree(dest)
+            shutil.rmtree(target_dir)
             continue
         os.makedirs(dest)
 
-        # move extracted files under pipeline folder, and if args.rename,m replace job name with patid
+        # move extracted files under pipeline folder, and if rename,m replace job name with patid
         for f in glob(os.path.join(target_dir, '*')):
-            filename = f.replace(job_search.search(f).group(1), patid) if args.rename and job_search.search(f) else f
+            filename = f.replace(job_search.search(f).group(1), patid) if rename and job_search.search(f) else f
             os.rename(f, os.path.join(dest, os.path.basename(filename)))
 
         os.rmdir(target_dir)
 
-    master_df_list = []
-    for type, df_list in report_dfs.items():
-        df = pd.concat(df_list).set_index(['Subject', 'Patient ID', 'Age', 'Sex', 'type']).sort_index()
-        outfile = os.path.join(args.outdir, type + '_report.csv')
-        if args.redo and os.path.exists(outfile):
-            old_df = pd.read_csv(outfile).set_index(['Subject', 'Patient ID', 'Age', 'Sex', 'type']).sort_index()
-            df = pd.concat([old_df, df])
-            df = df[~df.index.duplicated(keep='last')] # drop duplicate indexes + take most recently appended
-        df.to_csv(outfile)
-        master_df_list.append(df)
-
-
-    if not master_df_list:
+    # if no new reports, exit
+    if not any(report_dfs.values()):
         print('Report files are up to date')
         return
 
-    df = pd.concat(master_df_list)
-    # if args.redo:
-    #     df = df[~df.index.duplicated(keep='last')] # drop duplicate indexes + take most recently appended
-    df = df.unstack().sort_index()
-    df.columns = [ ' - '.join(map(str, col)) for col in df.columns ]
-    df = df.dropna(how='all', axis=1)
-    df.to_csv(os.path.join(args.outdir, 'volbrain_master_report.csv'))
+    # otherwise, combine old rows with new rows and save separate reports for each type
+    for type, df_list in report_dfs.items():
+        report_frames = []
 
-    if args.remove_zips:
-        for zip in zips:
-            os.remove(zip)
+        # include existing rows if not redo-ing
+        outfile = os.path.join(outdir, type + '_report.csv')
+        if not redo and os.path.exists(outfile):
+            report_frames.append(pd.read_csv(outfile))
+
+        report_frames += df_list
+        df = pd.concat(report_frames, sort=False).set_index(['Subject', 'Patient ID', 'Age', 'Sex', 'type'])
+        df = df[~df.index.duplicated(keep='last')] # drop duplicate indexes + take most recently appended
+        df = df.sort_index()
+        df.to_csv(outfile)
+
 
 @Gooey
 def parse_args():
@@ -137,7 +126,6 @@ def parse_args():
     parser.add_argument('indir', widget='DirChooser', help='directory containing zips from volbrain')
     parser.add_argument('outdir', widget='DirChooser', help='top-level directory to extract to')
     parser.add_argument('--rename', action='store_true', help='rename extracted files to have patid, not job id')
-    parser.add_argument('--remove_zips', action='store_true', help='remove zipfiles from indir (default=keep')
     parser.add_argument('--redo', action='store_true', help='re-extract values from previously processed zips in indir')
     parser.add_argument('--patid_pattern', default='[A-Z]+\d+_s\d', help='regex to extract patid from filename')
     return parser.parse_args()
@@ -145,4 +133,4 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    extract_and_combine(args.indir, args.outdir, args.patid_pattern, args.rename, args.redo, args.remove_zips)
+    extract_and_combine(args.indir, args.outdir, args.patid_pattern, args.rename, args.redo)
