@@ -64,6 +64,7 @@ def superplot(datafile, xvar, style_config=None, groupby=None, vars=[], min_pval
         scatter_legend = []
         for idx, g in enumerate(grp.groups):
             if g not in style_opts:
+                print('No style spec found for label: {}; using default styling...'.format(g))
                 style_opts[g] = build_style_opts(idx)
             scatter_legend.append(lines.Line2D([], [], **(style_opts[g]['markerstyle']), label=g))
 
@@ -75,8 +76,9 @@ def superplot(datafile, xvar, style_config=None, groupby=None, vars=[], min_pval
                     plot_subject(subdata, xvar, yvar, style_opts[g]['markerstyle'])
 
                 reg = stats.linregress(data[xvar], data[yvar])
+                rval, pval = stats.pearsonr(data[xvar], data[yvar])
                 mat = np.corrcoef(data[xvar], data[yvar])
-                label = '{0} (R^2 = {1:.2f}, p = {2:.2f})'.format(g, reg.rvalue**2, reg.pvalue)
+                label = '{0} (R^2 = {1:.2f}, p = {2:.2f})'.format(g, rval**2, pval)
                 if reg.pvalue < min_pval:
                     new_x = range(int(data[xvar].min()), int(data[xvar].max())+1)
                     plt.plot(new_x, reg.slope * new_x + reg.intercept, **(style_opts[g]['linestyle']))

@@ -1,7 +1,9 @@
 import os
 import sys
-from cx_Freeze import setup, Executable
+from cx_Freeze import hooks, setup, Executable
 import matplotlib
+import glob
+
 
 PYTHON_PATH = os.path.dirname(sys.executable)
 
@@ -32,9 +34,10 @@ setup(
     options = {
 		'build_exe': {
             'build_exe': '../build',
+			'include_msvcr': True,
 			'includes': additional_mods,
-			'packages': ['idna', 'numpy', 'pandas'],
-			'include_files': [(matplotlib.get_data_path(), "mpl-data")]
+			'packages': ['idna', 'numpy'],
+			'include_files': [(matplotlib.get_data_path(), "mpl-data")] #, (VCRUNTIME_DLL, 'vcruntime140.dll')]#, (SCIPY_MISSING_PATH, '_ufunc.pyd')]
 		}
 	},
     executables = executables

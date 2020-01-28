@@ -13,9 +13,58 @@ STATIC_FOLDER = r'//neuroimage.wustl.edu/nil/hershey/H/REDCap Scripts/static/'
 VARFILE_TEMPLATE = '{}_{}_column_map.csv'
 
 ASEBA_ID = 'AssessedPersonId'
-STUDY_ID_MAP = {
-    'NEWT': 'newt_id',
-    'NT': 'demo_study_id'
+
+CHECKBOX_MAP = {
+    'Activities_TScore.borderline': (31, 35),
+    'Activities_TScore.clinical': (20, 30),
+    'Aggressive_Behavior_TScore.borderline': (65, 69),
+    'Aggressive_Behavior_TScore.clinical': (70, 100),
+    'Anxiety_Problems_TScore.borderline': (65, 69),
+    'Anxiety_Problems_TScore.clinical': (70, 100),
+    'Anxious__Depressed_TScore.borderline': (65, 69),
+    'Anxious__Depressed_TScore.clinical': (70, 100),
+    'Attention_Deficit__Hyperactivity_Problems_TScore.borderline': (65, 69),
+    'Attention_Deficit__Hyperactivity_Problems_TScore.clinical': (70, 100),
+    'Attention_Problems_TScore.borderline': (65, 69),
+    'Attention_Problems_TScore.clinical': (70, 100),
+    'Conduct_Problems_TScore.borderline': (65, 69),
+    'Conduct_Problems_TScore.clinical': (70, 100),
+    'Depressive_Problems_TScore.borderline': (65, 69),
+    'Depressive_Problems_TScore.clinical': (70, 100),
+    'Emotionally_Reactive_TScore.borderline': (70, 100),
+    'Externalizing_Problems_TScore.borderline': (60, 63),
+    'Externalizing_Problems_TScore.clinical': (64, 100),
+    'Internalizing_Problems_TScore.borderline': (60, 63),
+    'Internalizing_Problems_TScore.clinical': (64, 100),
+    'Obsessive_Compulsive_Problems_TScore.borderline': (65, 69),
+    'Obsessive_Compulsive_Problems_TScore.clinical': (70, 100),
+    'Oppositionally_Defiant_Problems_TScore.borderline': (65, 69),
+    'Oppositionally_Defiant_Problems_TScore.clinical': (70, 100),
+    'Rule_Breaking_Behavior_TScore.borderline': (65, 69),
+    'Rule_Breaking_Behavior_TScore.clinical': (70, 100),
+    'School_TScore.borderline': (31, 35),
+    'School_TScore.clinical': (20, 30),
+    'Sleep_Problems_Tscore.borderline': (70, 100),
+    'Sluggish_Cognitive_Tempo_TScore.borderline': (65, 69),
+    'Sluggish_Cognitive_Tempo_TScore.clinical': (70, 100),
+    'Social_Problems_TScore.borderline': (65, 69),
+    'Social_Problems_TScore.clinical': (70, 100),
+    'Social_TScore.borderline': (31, 35),
+    'Social_TScore.clinical': (20, 30),
+    'Somatic_Complaints_TScore.borderline': (65, 69),
+    'Somatic_Complaints_TScore.clinical': (70, 100),
+    'Somatic_Problems_TScore.borderline': (65, 69),
+    'Somatic_Problems_TScore.clinical': (70, 100),
+    'Stress_Problems_TScore.borderline': (65, 69),
+    'Stress_Problems_TScore.clinical': (70, 100),
+    'Thought_Problems_TScore.borderline': (65, 69),
+    'Thought_Problems_TScore.clinical': (70, 100),
+    'Total_Competence_TScore.borderline': (37, 40),
+    'Total_Competence_TScore.clinical': (10, 36),
+    'Total_Problems_TScore.borderline': (60, 63),
+    'Total_Problems_TScore.clinical': (64, 100),
+    'Withdrawn__Depressed_TScore.borderline': (65, 69),
+    'Withdrawn__Depressed_TScore.clinical': (70, 100)
 }
 
 def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
@@ -27,12 +76,11 @@ def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
     df = df.drop(columns=drop_cols)
 
     # Determine clinical/borderline checkbox values
-    checkbox_lut = np.genfromtxt(os.path.join(STATIC_FOLDER, 'ASEBA_checkbox_map.csv'), delimiter=',', dtype='str')
-    for (var, trange) in checkbox_lut:
+    for (var, trange) in CHECKBOX_MAP.items():
         if not var in change_df['aseba_var'].values:
             continue
         tscore_col = var.split('.')[0]
-        min, max = map(int, trange.split('-'))
+        min, max = trange
         df[var] = df[tscore_col].apply(lambda x: int(x >= min and x <= max))
 
     # Rename columns to match REDCap variables
@@ -44,10 +92,14 @@ def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
         df[row['redcap_var']] = row['fill_value']
 
     # Extract study_id/redcap_event_name and rename
-    study_id_col = STUDY_ID_MAP[study_name] if study_name in STUDY_ID_MAP else 'record_id'
-    index_cols = [study_id_col, 'redcap_event_name']
-    df[index_cols] = df[ASEBA_ID].str.split('_', 1, expand=True)
-    df = df.drop(columns=[ASEBA_ID]).set_index(index_cols)
+    study_id_col = change_df.loc[change_df['aseba_var'] == ASEBA_ID].iloc[0]['redcap_var']
+    split_col_df = df[study_id_col].str.split('_', 1, expand=True)
+    if len(split_col_df.columns) > 1: # assume longitudinal if multipart ID
+        index_cols = [study_id_col, 'redcap_event_name']
+        df[index_cols] = split_col_df
+        df = df.set_index(index_cols)
+    else: # otherwise, just set ASEBA id to subject
+        df = df.set_index(study_id_col)
 
     # Flatten dataframe for multi-session databases NOT in longitudinal format
     if flatten:
