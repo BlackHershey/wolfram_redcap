@@ -1,0 +1,16 @@
+cx-Freeze
+Gooey
+idna
+matplotlib
+numpy
+pandas
+Pillow
+PyCap
+pydicom
+pyodbc
+pywin32
+requests
+scipy
+subprocess32
+wxPython
+xlrd
