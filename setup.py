@@ -7,8 +7,11 @@ import glob
 
 PYTHON_PATH = os.path.dirname(sys.executable)
 
-os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_PATH, 'tcl', 'tcl8.6')
-os.environ['TK_LIBRARY'] = os.path.join(PYTHON_PATH, 'tcl', 'tk8.6')
+# os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_PATH, 'tcl', 'tcl8.6')
+# os.environ['TK_LIBRARY'] = os.path.join(PYTHON_PATH, 'tcl', 'tk8.6')
+# NOTE: Jon had to hard-code this to the system Python path, couldn't figure out how to find it in the venv.
+os.environ['TCL_LIBRARY'] = r'C:\Users\jmk1\AppData\Local\Programs\Python\Python38\tcl\tcl8.6'
+os.environ['TK_LIBRARY'] = r'C:\Users\jmk1\AppData\Local\Programs\Python\Python38\tcl\tk8.6'
 
 additional_mods = ['numpy.core._methods', 'numpy.lib.format', 'matplotlib.backends.backend_tkagg']
 
