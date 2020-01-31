@@ -3,7 +3,13 @@ import sys
 from cx_Freeze import hooks, setup, Executable
 import matplotlib
 import glob
+import gooey
 
+gooey_path = os.path.split(gooey.__file__)[0]
+include_files = [
+	(matplotlib.get_data_path(), "mpl-data"), 
+	(os.path.join(gooey_path, 'images'), 'gooey/images'), 
+	(os.path.join(gooey_path, 'languages'), 'gooey/languages')]
 
 PYTHON_PATH = os.path.dirname(sys.executable)
 
@@ -40,7 +46,7 @@ setup(
 			'include_msvcr': True,
 			'includes': additional_mods,
 			'packages': ['idna', 'numpy'],
-			'include_files': [(matplotlib.get_data_path(), "mpl-data")] #, (VCRUNTIME_DLL, 'vcruntime140.dll')]#, (SCIPY_MISSING_PATH, '_ufunc.pyd')]
+			'include_files': include_files
 		}
 	},
     executables = executables
