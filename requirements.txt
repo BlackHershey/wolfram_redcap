@@ -7,7 +7,7 @@ pandas
 Pillow
 PyCap
 pydicom
-pyodbc
+pyodbc==4.0.27
 pywin32
 requests
 scipy
