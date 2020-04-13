@@ -27,7 +27,7 @@ def dot_dbs_import():
     chdir(args.folder)
 
     result = None
-    subject_dirs = [ d for d in listdir(getcwd()) if re.match('DOTDBS(\d)+$', d) ] if not args.subjects else args.subjects
+    subject_dirs = [ d for d in listdir(getcwd()) if re.match(r'DOTDBS(\d)+$', d) ] if not args.subjects else args.subjects
 
     if not subject_dirs:
         stderr.write('No subject directories found matching pattern: {}'.format('DOTDBS##'))

@@ -22,7 +22,7 @@ DSM_SCALE = [ 'affecprob', 'anxprob', 'somprob', 'adhdprob', 'opdefprob', 'condp
 ALL_MEASURES = COMP_SCALE1 + COMP_SCALE2 + SYN_SCALE + INT_EXT_PROBS + DSM_SCALE
 
 def extract_scores(input_folder, output_file, study_id_var, subject_prefix, subjects=[], from_date=None, non_long=False):
-	filename_format = '(({}\d+)_(\w+).\w+)'.format(subject_prefix) # get all the converted score reports (capturing the filename and the visit type)
+	filename_format = r'(({}\d+)_(\w+).\w+)'.format(subject_prefix) # get all the converted score reports (capturing the filename and the visit type)
 	all_files = [ re.search(filename_format, f, flags=re.IGNORECASE) for f in listdir(input_folder) ]
 	all_files = [ result.groups() for result in all_files if result ]
 	pdf_files = [ f for f in all_files if re.search('.pdf$', f[0], flags=re.IGNORECASE) ]
@@ -71,7 +71,7 @@ def extract_scores(input_folder, output_file, study_id_var, subject_prefix, subj
 	df = df.replace('nc', np.nan).dropna(axis=1, how='all') # drop columns that are all NaN (not all studies collect competence scale data)
 	df = redcap_common.flatten(df, sort=False, prefix='cbcl_')
 
-	checkbox_cols = [ re.search('(cbcl_(?:borderline|clinical)_(\w+))', col) for col in df.columns ]
+	checkbox_cols = [ re.search(r'(cbcl_(?:borderline|clinical)_(\w+))', col) for col in df.columns ]
 	checkbox_col_info = [ result.groups() for result in checkbox_cols if result ]
 	checkbox_col_renames = { group[0]: '{}___{}'.format(group[0].rsplit('_', 1)[0], ALL_MEASURES.index(group[1])+1) for group in checkbox_col_info }
 	df = df.rename(columns=checkbox_col_renames)

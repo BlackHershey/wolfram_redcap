@@ -19,7 +19,7 @@ def get_processed_jobs(outdir):
 
 def extract_and_combine(indir, outdir, patid_pattern, rename=False, redo=False):
     # extract/rename files in volbrain zips
-    job_search = re.compile('(job\d{6})')
+    job_search = re.compile(r'(job\d{6})')
 
     patid_search = re.compile('({})'.format(patid_pattern), flags=re.IGNORECASE)
 
@@ -127,7 +127,7 @@ def parse_args():
     parser.add_argument('outdir', widget='DirChooser', help='top-level directory to extract to')
     parser.add_argument('--rename', action='store_true', help='rename extracted files to have patid, not job id')
     parser.add_argument('--redo', action='store_true', help='re-extract values from previously processed zips in indir')
-    parser.add_argument('--patid_pattern', default='[A-Z]+\d+_s\d', help='regex to extract patid from filename')
+    parser.add_argument('--patid_pattern', default=r'[A-Z]+\d+_s\d', help='regex to extract patid from filename')
     return parser.parse_args()
 
 

@@ -38,7 +38,7 @@ def format_track_data():
 
     # create initial dataframe structure
     df = redcap_common.create_df(args.input_file)
-    df = df[df[TRACK_STUDY_ID].str.contains('TRACK\d+')] # remove test rows
+    df = df[df[TRACK_STUDY_ID].str.contains(r'TRACK\d+')] # remove test rows
 
     project = None
     if any(arg is not None for arg in [args.all, args.any, args.duration, args.consecutive]):
@@ -52,7 +52,7 @@ def format_track_data():
 
     fields = None
     if args.duration or args.consecutive:
-        fields = redcap_common.get_matching_columns(project.field_names, '\w*(' + '|'.join(DURATION_FIELDS) + ')')
+        fields = redcap_common.get_matching_columns(project.field_names, r'\w*(' + '|'.join(DURATION_FIELDS) + ')')
         df = redcap_common.merge_api_data(df, project, fields, [TRACK_STUDY_ID])
 
     # expand/rename after api merge to ensure column names match up
@@ -79,7 +79,7 @@ def format_track_data():
     df = df.set_index([TRACK_STUDY_ID, redcap_common.SESSION_NUMBER])
 
     if not args.expand:
-        non_session_cols = { col: 's1_' + col for col in df.columns if not re.match('s\d_', col) }
+        non_session_cols = { col: 's1_' + col for col in df.columns if not re.match(r's\d_', col) }
         df = df.rename(columns=non_session_cols)
         df = redcap_common.flatten(df) # always reflatten at end, unless expand flag is set
 

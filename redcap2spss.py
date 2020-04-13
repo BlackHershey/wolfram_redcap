@@ -22,7 +22,7 @@ def redcap2spss(input_file, output_file):
 
     if df.shape[0] == len(df.iloc[:, 0].unique()): # if the row count is the same as the unique indentifiers, assume spss to redcap
         # get columns that have session as a suffix and make it a prefix instead (this is the format expand expects)
-        suffixed_cols = { col: '_'.join([col[-2:], col[:-3]]) for col in df.columns if re.search('_s\d$', col) }
+        suffixed_cols = { col: '_'.join([col[-2:], col[:-3]]) for col in df.columns if re.search(r'_s\d$', col) }
         if suffixed_cols:
             df = df.rename(columns=suffixed_cols)
 

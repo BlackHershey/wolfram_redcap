@@ -39,14 +39,14 @@ def replace_variables(df, var_map):
 
 
 def get_session_number(pin):
-	session = re.search('(s\d?)', pin, flags=re.IGNORECASE)
+	session = re.search(r'(s\d?)', pin, flags=re.IGNORECASE)
 	return session.group().lower() if session else 's1'
 
 
 def extract_id_and_session(df):
 	# df['session_number'] = df['newt_id'].apply(get_session_number)
 	# df['newt_id'] = df['newt_id'].apply(lambda x: re.match('(NEWT *\d{3}?)', x, flags=re.IGNORECASE).group().upper().replace(' ', ''))
-	df[['newt_id', 'session_number']] = df['newt_id'].str.extract('(\w* ?\d+)(?:_| )(s\d)', flags=re.IGNORECASE)
+	df[['newt_id', 'session_number']] = df['newt_id'].str.extract(r'(\w* ?\d+)(?:_| )(s\d)', flags=re.IGNORECASE)
 	df['newt_id'] = df['newt_id'].apply(lambda x: x.replace(' ', '').upper())
 	df['session_number'] = df['session_number'].fillna('s1').str.lower()
 	return df
@@ -100,7 +100,7 @@ def nih_toolbox_import(exports_folder, subjects):
 	result.rename(columns={ col: col[3:] for col in result.columns if 'parent' in col and 'neuroqol' not in col }, inplace=True)
 	result.rename(columns={ col: col[:-4] for col in result.columns if 'self_neuroqol_raw' in col }, inplace=True)
 
-	drop_cols = [ col for col in result.columns if not 'neuroqol' in col and re.match('\w*_(raw|tscore)$', col) ]
+	drop_cols = [ col for col in result.columns if not 'neuroqol' in col and re.match(r'\w*_(raw|tscore)$', col) ]
 	result = result.drop(drop_cols, axis=1)
 
 	redcap_common.write_results_and_open(result, 'nih_result.csv')

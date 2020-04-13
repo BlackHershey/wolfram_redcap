@@ -222,7 +222,7 @@ def flatten(df, sort=True, prefix=''):
 
 # reshape dataframe such that there is one row per participant per session
 def expand(df):
-    non_session_cols = { col: 's1_' + col for col in df.columns if not re.match('s\d_', col) }
+    non_session_cols = { col: 's1_' + col for col in df.columns if not re.match(r's\d_', col) }
     df.rename(columns=non_session_cols, inplace=True)
 
     # extract session number as new index level and then reshape to have one row per subject per session

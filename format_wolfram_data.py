@@ -63,7 +63,7 @@ def format_wolfram_data():
 
     # create dataframe from REDCap data
     df = redcap_common.create_df(args.input_file)
-    df = df[df[WFS_STUDY_ID].str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
+    df = df[df[WFS_STUDY_ID].str.contains(r'WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
     num_clinic_years = len(df['redcap_event_name'].unique())-1  # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
 
     # only create API project if actions require it and data needed is not already present

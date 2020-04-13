@@ -61,7 +61,7 @@ def migrate(data_file, var_file):
     for (datafile, varfile) in zip(data_file, var_file):
         print(datafile, varfile)
         df = pd.read_csv(datafile, dtype=object)
-        df = df[df['study_id'].str.contains('WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows # FIXME
+        df = df[df['study_id'].str.contains(r'WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows # FIXME
         df['redcap_event_name'] = df['redcap_event_name'].str.replace('wolframclinic_', '')
         df = df.set_index(['study_id', 'redcap_event_name']).dropna(how='all')
         change_df = pd.read_csv(varfile)
