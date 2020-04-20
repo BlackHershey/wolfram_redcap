@@ -112,7 +112,7 @@ def get_diagnosis_age(row, dx_vars):
 
 # Determines duration of diagnosis for each participant at each session_number
 # Relies on precalculated diagnosis age (based on single year (2016) diagnosis information due to database structure)
-def calculate_diasnosis_duration(group, dx_type, dx_age_df):
+def calculate_diagnosis_duration(group, dx_type, dx_age_df):
     diagnosis_age = dx_age_df.loc[dx_age_df[STUDY_ID] == group.name]['dx_age']
     if diagnosis_age.values:
         new_column = '_'.join(['dx', dx_type, 'duration'])

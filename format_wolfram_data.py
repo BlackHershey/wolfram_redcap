@@ -100,7 +100,7 @@ def format_wolfram_data():
             dx_vars = { 'dx_date': get_dx_column(dx_type, 'date'), 'dx_age': get_dx_column(dx_type, 'age') }
             df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
-            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diasnosis_duration, dx_type, dx_age_df)
+            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type, dx_age_df)
             #df.to_csv(r'C:\Users\acevedoh\Downloads\test.csv')
         df = df.drop(['session_age', 'redcap_event_name'], axis=1)
 

@@ -67,7 +67,7 @@ def format_track_data():
         dx_vars = { 'dx_date': 'db_dx_date', 'dx_age': 'db_onset_age' }
         df['db_dx_date'] = pd.to_datetime(df['db_dx_date'])
         dx_age_df = df.loc[df[redcap_common.SESSION_NUMBER] == 's1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
-        df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diasnosis_duration, 'db', dx_age_df)
+        df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, 'db', dx_age_df)
         df = df.drop('session_age', axis=1)
 
     if args.consecutive:
