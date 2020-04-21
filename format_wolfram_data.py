@@ -27,9 +27,17 @@ NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
 
 RENAMES = [None, WFS_CLINIC_YEAR, None, 'clinic_date', WFS_SESSION_NUMBER]
 
+MRI_DATE = 'mri_date'
+MRI_AGE = 'mri_age'
+
 def get_dx_column(dx_type, measure):
     return '_'.join(['dx', dx_type, measure])
 
+def mri_age_calc(df):
+    df[MRI_DATE] = pd.to_datetime(df[MRI_DATE], errors='coerce')
+    df['dob'] = pd.to_datetime(df.groupby(['study_id'])['dob'].transform(lambda x: x.loc[x.first_valid_index()] if x.first_valid_index() is not None else np.nan)) # fills in dob for missing years using first-found dob for participant
+    df[MRI_AGE] = df.apply(lambda x: redcap_common.get_age(x['dob'], x[MRI_DATE]), axis=1)
+    return df
 
 @Gooey(default_size=(700,600))
 def format_wolfram_data():
@@ -111,11 +119,14 @@ def format_wolfram_data():
     if args.dx_types is not None: # explicit None check because empty array is valid
         # this puts a 'session_age' field into the df using dob and session_date (where session_date is from clinic_date)
         df = redcap_common.prepare_age_calc(df)
+        df = mri_age_calc(df)
         for dx_type in args.dx_types:
             dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
             # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
-            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type, dx_age_df)
+            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type, dx_age_df, 'session_age')
+            dx_type_mri = '_'.join([dx_type, 'mri'])
+            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri, dx_age_df, 'mri_age')
         # df = df.drop(['session_age', 'redcap_event_name'], axis=1)
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
@@ -141,14 +152,17 @@ def format_wolfram_data():
             fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
         df = redcap_common.cleanup_api_merge(df, fields)
 
-    # remove dob and clinic date
+    # remove dob, clinic date and MRI date
     df = df.drop(['dob'], axis=1)
     df = df.drop(['clinic_date'], axis=1)
+    df = df.drop(['mri_date'], axis=1)
 
     # remove negative duration values
     for dx_type in args.dx_types:
         dx_dur_field = get_dx_column(dx_type, 'duration')
         df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
+        dx_mri_dur_field = get_dx_column(dx_type, 'mri_duration')
+        df.loc[~(df[dx_mri_dur_field] > 0), dx_mri_dur_field]=np.nan
 
     # df.to_csv(r'C:\temp\df_before_flatten.csv')
 
