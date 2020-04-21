@@ -18,6 +18,7 @@ SESSION_YEAR = 'session_year'
 SESSION_NUMBER = 'session_number'
 DOB = 'dob'
 SESSION_DATE = 'session_date'
+SESSION_AGE = 'session_age'
 
 COMMON_COLS = [STUDY_ID, SESSION_YEAR, DOB, SESSION_DATE, SESSION_NUMBER]
 
@@ -71,24 +72,25 @@ def get_age(date1, date2):
 def prepare_age_calc(df):
     df[SESSION_DATE] = pd.to_datetime(df[SESSION_DATE], errors='coerce')
     df[DOB] = pd.to_datetime(df.groupby([STUDY_ID])[DOB].transform(lambda x: x.loc[x.first_valid_index()] if x.first_valid_index() is not None else np.nan)) # fills in dob for missing years using first-found dob for participant
-    df['session_age'] = df.apply(lambda x: get_age(x[DOB], x[SESSION_DATE]), axis=1)
+    df[SESSION_AGE] = df.apply(lambda x: get_age(x[DOB], x[SESSION_DATE]), axis=1)
     return df
 
 
 # Determine age at diagnosis
-# Uses birthday and diagnosis date if possible, otherwise uses provided age
+# Uses birthday, session date, session age and diagnosis age
 def get_diagnosis_age(row, dx_vars):
-    diagnosis_date = row[dx_vars['dx_date']]
-    diagnosis_age = np.nan
+    # diagnosis_date = row[dx_vars['dx_date']]
+    # diagnosis_age = np.nan
+    diagnosis_age = row[dx_vars['dx_age']]
 
     # if no date was provided, fall back on age (if provided)
-    if pd.isnull(diagnosis_date):
-        diagnosis_age = string_to_float(row[dx_vars['dx_age']]) # float since we may have fractional age
-    else:
-        try:
-            diagnosis_age = get_age(row['dob'], diagnosis_date)
-        except ValueError:
-            pass
+    # if pd.isnull(diagnosis_date):
+    #    diagnosis_age = string_to_float(row[dx_vars['dx_age']]) # float since we may have fractional age
+    #else:
+    #    try:
+    #        diagnosis_age = get_age(row['dob'], diagnosis_date)
+    #    except ValueError:
+    #        pass
 
     row['dx_age'] = diagnosis_age
     return row[[STUDY_ID, 'dx_age']]

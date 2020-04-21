@@ -63,20 +63,33 @@ def format_wolfram_data():
     df = redcap_common.create_df(args.input_file)
     df = df[df[WFS_STUDY_ID].str.contains(r'WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
     num_clinic_years = len(df['redcap_event_name'].unique())-1  # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
+    print('### Number of clinic years detected = {} ###'.format(num_clinic_years))
 
-    # only create API project if actions require it and data needed is not already present
+    # get number of subjects in dataframe
+    num_subjects = len(df[WFS_STUDY_ID].unique())
+    print('### Number of subjects detected in {} = {} ###'.format(args.input_file,num_subjects))
+
+    # only create API project if actions require it and data needed is not already present, AND if API token is given
     project = None
+    # check for fields missing from csv df
     fields = [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if MISSED_SESSION not in df.columns:
         fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
-    if any(arg is not None for arg in [args.dx_types, args.all, args.any]): # all of these args require api project info
-        project = redcap_common.get_redcap_project('wolfram', args.api_password)
         if args.dx_types is not None:
-            fields += NON_DX_FIELDS_FOR_DURATION
-            fields += redcap_common.get_matching_columns(project.field_names, 'clinichx_dx_') # if doing date calculation, always bring in all dates to prevent possible date-shift errors
-    if fields:
+        for dx_type in args.dx_types:
+            dx_age_field = get_dx_column(dx_type, 'best_age_calc')
+            if dx_age_field not in df.columns:
+                fields.append(dx_age_field)
+        for non_dx_field in NON_DX_FIELDS_FOR_DURATION:
+            if non_dx_field not in df.columns:
+                fields.append(non_dx_field)
+    if fields: # missing some fields, go get from REDCap
+        print('### need to get some fields from REDCap ###')
+        if args.api_token == "":
+            raise RuntimeError("Thre are missing fields in the input csv, so we need to get data from REDCap, but no API token is given. Ask Jon about REDCap API access.")
+        else:
         redcap_project_key = 'itrack' if not args.old_db else 'wolfram'
-        project = project if project else redcap_common.get_redcap_project(redcap_project_key, args.api_password)
+            project = project if project else redcap_common.get_redcap_project(redcap_project_key, args.api_token)
         df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
 
     # rename common columns after api merge to ensure column names match up
@@ -93,14 +106,14 @@ def format_wolfram_data():
 
     # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
     if args.dx_types is not None: # explicit None check because empty array is valid
+        # this puts a 'session_age' field into the df using dob and session_date (where session_date is from clinic_date)
         df = redcap_common.prepare_age_calc(df)
         for dx_type in args.dx_types:
-            dx_vars = { 'dx_date': get_dx_column(dx_type, 'date'), 'dx_age': get_dx_column(dx_type, 'age') }
-            df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
+            dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
+            # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
             df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type, dx_age_df)
-            #df.to_csv(r'C:\Users\acevedoh\Downloads\test.csv')
-        df = df.drop(['session_age', 'redcap_event_name'], axis=1)
+        # df = df.drop(['session_age', 'redcap_event_name'], axis=1)
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
     if args.all:
@@ -120,11 +133,21 @@ def format_wolfram_data():
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
-    if not fields == [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR]: # don't need to go through deletion logic if only field is session number
+    if not fields == [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] and args.api_token: # don't need to go through deletion logic if only field is session number
         if WFS_SESSION_NUMBER in fields:
             fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
         df = redcap_common.cleanup_api_merge(df, fields)
 
+    # remove dob and clinic date
+    df = df.drop(['dob'], axis=1)
+    df = df.drop(['clinic_date'], axis=1)
+
+    # remove negative duration values
+    for dx_type in args.dx_types:
+        dx_dur_field = get_dx_column(dx_type, 'duration')
+        df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
+
+    # df.to_csv(r'C:\temp\df_before_flatten.csv')
 
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
@@ -133,6 +156,8 @@ def format_wolfram_data():
 
     if args.transpose:
         df = df.transpose()
+
+    # df.to_csv(r'C:\temp\df_right_before_save.csv')
 
     redcap_common.write_results_and_open(df, args.output_file)
 
