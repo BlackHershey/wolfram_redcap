@@ -39,6 +39,12 @@ def mri_age_calc(df):
     df[MRI_AGE] = df.apply(lambda x: redcap_common.get_age(x['dob'], x[MRI_DATE]), axis=1)
     return df
 
+def select_best_age(row):
+    if row['mri_age'] > 0:
+        return row['mri_age']
+    else:
+        return row['session_age']
+
 @Gooey(default_size=(700,600))
 def format_wolfram_data():
     # set up expected arguments and associated help text
@@ -50,6 +56,7 @@ def format_wolfram_data():
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
     optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
+    optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date','MRI date if available, otherwise clinic date ("mri_or_clinic")'], help='Visit date to use when calculating dx durations')
     optional.add_argument('--old-db', action='store_true', help='whether data was sourced from old Wolfram database')
     optional.add_argument('--api_token', widget='PasswordField', help='REDCap API token (if not specified, will not pull anything from REDCap)')
 
@@ -120,13 +127,28 @@ def format_wolfram_data():
         # this puts a 'session_age' field into the df using dob and session_date (where session_date is from clinic_date)
         df = redcap_common.prepare_age_calc(df)
         df = mri_age_calc(df)
+        df['mri_or_clinic_age'] = df.apply(lambda row: select_best_age(row), axis = 1)
         for dx_type in args.dx_types:
             dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
             # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
-            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type, dx_age_df, 'session_age')
-            dx_type_mri = '_'.join([dx_type, 'mri'])
-            df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri, dx_age_df, 'mri_age')
+            if args.duration_type == 'clinic date':
+                dx_type_clinic = '_'.join([dx_type, 'clinic'])
+                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_clinic, dx_age_df, 'session_age')
+                dx_dur_field = get_dx_column(dx_type, 'clinic_duration')
+                df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
+            elif args.duration_type == 'MRI date':
+                dx_type_mri = '_'.join([dx_type, 'mri'])
+                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri, dx_age_df, 'mri_age')
+                dx_mri_dur_field = get_dx_column(dx_type, 'mri_duration')
+                df.loc[~(df[dx_mri_dur_field] > 0), dx_mri_dur_field]=np.nan
+            elif args.duration_type == 'MRI date if available, otherwise clinic date ("mri_or_clinic")':
+                dx_type_mri_or_clinic = '_'.join([dx_type, 'mri_or_clinic'])
+                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri_or_clinic, dx_age_df, 'mri_or_clinic_age')
+                dx_best_dur_field = get_dx_column(dx_type, 'mri_or_clinic_duration')
+                df.loc[~(df[dx_best_dur_field] > 0), dx_best_dur_field]=np.nan
+            else:
+                raise Exception("ERROR: dx_types chosen, but no duration_type chosen")
         # df = df.drop(['session_age', 'redcap_event_name'], axis=1)
 
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
@@ -156,13 +178,6 @@ def format_wolfram_data():
     df = df.drop(['dob'], axis=1)
     df = df.drop(['clinic_date'], axis=1)
     df = df.drop(['mri_date'], axis=1)
-
-    # remove negative duration values
-    for dx_type in args.dx_types:
-        dx_dur_field = get_dx_column(dx_type, 'duration')
-        df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
-        dx_mri_dur_field = get_dx_column(dx_type, 'mri_duration')
-        df.loc[~(df[dx_mri_dur_field] > 0), dx_mri_dur_field]=np.nan
 
     # df.to_csv(r'C:\temp\df_before_flatten.csv')
 
