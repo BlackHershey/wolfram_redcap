@@ -42,7 +42,7 @@ def format_track_data():
 
     project = None
     if any(arg is not None for arg in [args.all, args.any, args.duration, args.consecutive]):
-        project = redcap_common.get_redcap_project('track', args.api_password)
+        project = redcap_common.get_redcap_project('track', args.api_token)
 
     if args.all:
         df = redcap_common.check_for_all(df, args.all, project)

@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pyodbc
 import re
 
 from datetime import datetime
@@ -35,26 +34,11 @@ def rename_common_columns(df, renames, reset):
 
 
 # create separate dataframe with demographic/diagnosis info from API export
-def get_redcap_project(project, password=None):
-    if not password:
-        print('\nRequested action requires API access. Enter access database password to continue.')
-        password = getpass()
+def get_redcap_project(project, api_token=None):
+    if not api_token:
+        print('\nRequested action requires API access. Enter API token to continue.')
+        api_token = getpass()
 
-    try:
-        conn_str = (
-            r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
-            r'DBQ=' + DB_PATH + ';'
-            r'PWD=' + password
-        )
-        conn = pyodbc.connect(conn_str)
-    except pyodbc.Error:
-        stderr.write('Error connecting to access database')
-        exit(1)
-
-    cursor = conn.cursor()
-    sql = 'SELECT api_token FROM {}_api_tokens WHERE userid = ?'.format(project)
-    cursor.execute(sql, (getuser(),))
-    api_token = cursor.fetchone()[0]
     project = Project(URL, api_token)
     return project
 

@@ -1,7 +1,6 @@
 import datetime
 import re
 import time
-import pyodbc
 import redcap_common
 
 import numpy as np
@@ -15,7 +14,6 @@ from subprocess import Popen
 from sys import exit, stderr
 
 # API constants
-DB_PATH = 'H:/REDCap Scripts/api_tokens.accdb'
 URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
 
 # Redcap constants
@@ -40,12 +38,12 @@ def format_wolfram_data():
     required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
     required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
     required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
-    required.add_argument('--api_password', required=True, widget='PasswordField', help='Password to access API token')
 
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
     optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
     optional.add_argument('--old-db', action='store_true', help='whether data was sourced from old Wolfram database')
+    optional.add_argument('--api_token', widget='PasswordField', help='REDCap API token (if not specified, will not pull anything from REDCap)')
 
     variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
     variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
