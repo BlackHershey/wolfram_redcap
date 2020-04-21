@@ -28,7 +28,7 @@ NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
 RENAMES = [None, WFS_CLINIC_YEAR, None, 'clinic_date', WFS_SESSION_NUMBER]
 
 def get_dx_column(dx_type, measure):
-    return '_'.join(['clinichx', 'dx', dx_type, measure])
+    return '_'.join(['dx', dx_type, measure])
 
 
 @Gooey(default_size=(700,600))
@@ -56,6 +56,9 @@ def format_wolfram_data():
 
     args = parser.parse_args()
 
+    if not args.old_db:
+        print('### "old_db" not checked, only pulling data from the "new" database ###')
+
     if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
         parser.error('Input and output files must be of type csv')
 
@@ -75,7 +78,7 @@ def format_wolfram_data():
     fields = [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
     if MISSED_SESSION not in df.columns:
         fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
-        if args.dx_types is not None:
+    if args.dx_types is not None:
         for dx_type in args.dx_types:
             dx_age_field = get_dx_column(dx_type, 'best_age_calc')
             if dx_age_field not in df.columns:
@@ -88,9 +91,9 @@ def format_wolfram_data():
         if args.api_token == "":
             raise RuntimeError("Thre are missing fields in the input csv, so we need to get data from REDCap, but no API token is given. Ask Jon about REDCap API access.")
         else:
-        redcap_project_key = 'itrack' if not args.old_db else 'wolfram'
+            redcap_project_key = 'itrack' if not args.old_db else 'wolfram'
             project = project if project else redcap_common.get_redcap_project(redcap_project_key, args.api_token)
-        df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
+            df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
 
     # rename common columns after api merge to ensure column names match up
     df = redcap_common.rename_common_columns(df, RENAMES, False)
