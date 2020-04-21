@@ -66,7 +66,7 @@ def string_to_float(s):
 
 # Helper function to calculate fractional age (date1 should be dob)
 def get_age(date1, date2):
-    return (date2 - date1).days / float(365)
+    return (date2 - date1).days / float(365.25)
 
 
 def prepare_age_calc(df):
