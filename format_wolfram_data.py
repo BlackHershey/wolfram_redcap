@@ -63,7 +63,8 @@ def format_wolfram_data():
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
     optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
-    optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date','MRI date if available, otherwise clinic date ("mri_or_clinic")'], help='Visit date to use when calculating dx durations')
+    # optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date','MRI date if available, otherwise clinic date ("mri_or_clinic")'], help='Visit date to use when calculating dx durations')
+    optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date'], help='Visit date to use when calculating dx durations')
     optional.add_argument('--old-db', action='store_true', help='whether data was sourced from old Wolfram database')
     optional.add_argument('--api_token', widget='PasswordField', help='REDCap API token (if not specified, will not pull anything from REDCap)')
 
