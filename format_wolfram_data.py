@@ -194,6 +194,9 @@ def format_wolfram_data():
             fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
         df = redcap_common.cleanup_api_merge(df, fields)
 
+    # rename session_age to clinic_age
+    df = df.rename(columns={"session_age": "clinic_age"})
+
     # remove dob, clinic date and MRI date
     df = df.drop(['dob'], axis=1)
     df = df.drop(['clinic_date'], axis=1)
