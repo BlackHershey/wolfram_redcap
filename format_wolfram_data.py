@@ -45,6 +45,13 @@ def select_best_age(row):
     else:
         return row['session_age']
 
+def get_clinic_year(row):
+    clinic_year = row['redcap_event_name'][0:4]
+    if clinic_year == 'stab':
+        clinic_year = '0'
+    return clinic_year
+
+
 @Gooey(default_size=(700,600))
 def format_wolfram_data():
     # set up expected arguments and associated help text
@@ -66,8 +73,9 @@ def format_wolfram_data():
 
     format_options = parser.add_argument_group('Formatting options', gooey_options={'columns':2, 'show_border':True})
     format_options.add_argument('-f', '--flatten', action='store_true', help='Arrange all session data in single row for participant')
+    format_options.add_argument('--flatten_by', default='session number', choices=['session number', 'clinic year'], help='Flatten data by session number or clinic year')
     format_options.add_argument('-t', '--transpose', action='store_true', help='Transpose the data')
-    format_options.add_argument('-s', '--sort_by', default='session', choices=['session','variable'], help='Sort flattened data by session or variable')
+    format_options.add_argument('-s', '--sort_by', default='variable', choices=['variable', 'session'], help='Sort flattened data by session or variable')
 
     args = parser.parse_args()
 
@@ -165,7 +173,17 @@ def format_wolfram_data():
         stderr.write('No data to return. Selections have filtered out all rows.')
         exit(1)
 
-    df.set_index([redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER], inplace=True)
+    # add clinic_year
+    df['clinic_year'] = df.apply(lambda row: get_clinic_year(row), axis = 1)
+
+    if args.flatten_by == 'session number':
+        df.set_index([redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER], inplace=True)
+        flatten_group_prefix = 's'
+    elif args.flatten_by == 'clinic year':
+        df.set_index([redcap_common.STUDY_ID, 'clinic_year'], inplace=True)
+        flatten_group_prefix = 'clinic'
+    else:
+        raise Exception('ERROR: flatten_by check failed')
 
     df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
@@ -184,7 +202,7 @@ def format_wolfram_data():
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
         sort = args.sort_by == 'session'
-        df = redcap_common.flatten(df, sort, 's')
+        df = redcap_common.flatten(df, sort, flatten_group_prefix)
 
     if args.transpose:
         df = df.transpose()
