@@ -136,7 +136,8 @@ def format_wolfram_data():
         # this puts a 'session_age' field into the df using dob and session_date (where session_date is from clinic_date)
         df = redcap_common.prepare_age_calc(df)
         df = mri_age_calc(df)
-        df['mri_or_clinic_age'] = df.apply(lambda row: select_best_age(row), axis = 1)
+        if args.duration_type == 'MRI date if available, otherwise clinic date ("mri_or_clinic")':
+            df['mri_or_clinic_age'] = df.apply(lambda row: select_best_age(row), axis = 1)
         for dx_type in args.dx_types:
             dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
             # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
