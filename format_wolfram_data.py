@@ -181,7 +181,7 @@ def format_wolfram_data():
         flatten_group_prefix = 's'
     elif args.flatten_by == 'clinic year':
         df.set_index([redcap_common.STUDY_ID, 'clinic_year'], inplace=True)
-        flatten_group_prefix = 'clinic'
+        flatten_group_prefix = 'c'
     else:
         raise Exception('ERROR: flatten_by check failed')
 
