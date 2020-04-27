@@ -70,9 +70,11 @@ def get_age(date1, date2):
 
 
 def prepare_age_calc(df):
+    # put new session_age right after session_date in df
     df[SESSION_DATE] = pd.to_datetime(df[SESSION_DATE], errors='coerce')
     df[DOB] = pd.to_datetime(df.groupby([STUDY_ID])[DOB].transform(lambda x: x.loc[x.first_valid_index()] if x.first_valid_index() is not None else np.nan)) # fills in dob for missing years using first-found dob for participant
-    df[SESSION_AGE] = df.apply(lambda x: get_age(x[DOB], x[SESSION_DATE]), axis=1)
+    session_age_column = df.apply(lambda x: get_age(x[DOB], x[SESSION_DATE]), axis=1)
+    df.insert(df.columns.get_loc(SESSION_DATE), SESSION_AGE, session_age_column)
     return df
 
 
