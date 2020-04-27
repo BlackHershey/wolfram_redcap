@@ -36,7 +36,8 @@ def get_dx_column(dx_type, measure):
 def mri_age_calc(df):
     df[MRI_DATE] = pd.to_datetime(df[MRI_DATE], errors='coerce')
     df['dob'] = pd.to_datetime(df.groupby(['study_id'])['dob'].transform(lambda x: x.loc[x.first_valid_index()] if x.first_valid_index() is not None else np.nan)) # fills in dob for missing years using first-found dob for participant
-    df[MRI_AGE] = df.apply(lambda x: redcap_common.get_age(x['dob'], x[MRI_DATE]), axis=1)
+    mri_age_column = df.apply(lambda x: redcap_common.get_age(x['dob'], x[MRI_DATE]), axis=1)
+    df.insert(df.columns.get_loc(MRI_DATE), MRI_AGE, mri_age_column)
     return df
 
 def select_best_age(row):
