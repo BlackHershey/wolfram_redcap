@@ -50,7 +50,7 @@ def get_clinic_year(row):
     clinic_year = row['redcap_event_name'][0:4]
     if clinic_year == 'stab':
         clinic_year = '0'
-    return clinic_year
+    return int(clinic_year)
 
 
 @Gooey(default_size=(700,600))
@@ -179,16 +179,9 @@ def format_wolfram_data():
     # add clinic_year
     df['clinic_year'] = df.apply(lambda row: get_clinic_year(row), axis = 1)
 
-    if args.flatten_by == 'session number':
-        df.set_index([redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER], inplace=True)
-        flatten_group_prefix = 's'
-    elif args.flatten_by == 'clinic year':
-        df.set_index([redcap_common.STUDY_ID, 'clinic_year'], inplace=True)
-        flatten_group_prefix = 'c'
-    else:
-        raise Exception('ERROR: flatten_by check failed')
+    # rename common columns back to original names
+    df = redcap_common.rename_common_columns(df, RENAMES, True)
 
-    df = redcap_common.rename_common_columns(df, RENAMES, True) # rename common columns back to original names
     # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
     if not fields == [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] and args.api_token: # don't need to go through deletion logic if only field is session number
         if WFS_SESSION_NUMBER in fields:
@@ -207,8 +200,22 @@ def format_wolfram_data():
 
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
+        # multi-index column for flattening
+        if args.flatten_by == 'session number':
+            flatten_by_column = 'wolfram_sessionnumber'
+            flatten_label = '_flattened_by_session'
+            # df.set_index([redcap_common.STUDY_ID, redcap_common.SESSION_NUMBER], inplace=True)
+            flatten_group_prefix = 's'
+        elif args.flatten_by == 'clinic year':
+            flatten_by_column = 'clinic_year'
+            flatten_label = '_flattened_by_clinic'
+            # df.set_index([redcap_common.STUDY_ID, 'clinic_year'], inplace=True)
+            flatten_group_prefix = 'c'
+        else:
+            raise Exception('ERROR: flatten_by check failed')
+
         sort = args.sort_by == 'session'
-        df = redcap_common.flatten(df, sort, flatten_group_prefix)
+        df = redcap_common.flatten(df, flatten_by_column, sort, flatten_group_prefix)
 
     if args.transpose:
         df = df.transpose()
