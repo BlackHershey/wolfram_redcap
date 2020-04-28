@@ -59,7 +59,7 @@ def format_wolfram_data():
     parser = GooeyParser(description='Formats Wolfram data from REDCap csv export')
     required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
     required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
-    required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
+    # required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
 
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
@@ -82,11 +82,15 @@ def format_wolfram_data():
 
     args = parser.parse_args()
 
+    dur_label = ''
+    flatten_label = ''
+    mri_label = ''
+
     if not args.old_db:
         print('### "old_db" not checked, only pulling data from the "new" database ###')
 
-    if not args.input_file.endswith('.csv') or not args.output_file.endswith('.csv'):
-        parser.error('Input and output files must be of type csv')
+    if not args.input_file.endswith('.csv'):
+        parser.error('Input file must be of type csv')
 
     # create dataframe from REDCap data
     df = redcap_common.create_df(args.input_file)
@@ -145,16 +149,19 @@ def format_wolfram_data():
             # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
             dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
             if args.duration_type == 'clinic date':
+                dur_label = '_clinic_duration'
                 dx_type_clinic = '_'.join([dx_type, 'clinic'])
                 df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_clinic, dx_age_df, 'session_age')
                 dx_dur_field = get_dx_column(dx_type, 'clinic_duration')
                 df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
             elif args.duration_type == 'MRI date':
+                dur_label = '_mri_duration'
                 dx_type_mri = '_'.join([dx_type, 'mri'])
                 df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri, dx_age_df, 'mri_age')
                 dx_mri_dur_field = get_dx_column(dx_type, 'mri_duration')
                 df.loc[~(df[dx_mri_dur_field] > 0), dx_mri_dur_field]=np.nan
             elif args.duration_type == 'MRI date if available, otherwise clinic date ("mri_or_clinic")':
+                dur_label = '_mri_or_clinic_duration'
                 dx_type_mri_or_clinic = '_'.join([dx_type, 'mri_or_clinic'])
                 df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri_or_clinic, dx_age_df, 'mri_or_clinic_age')
                 dx_best_dur_field = get_dx_column(dx_type, 'mri_or_clinic_duration')
@@ -229,7 +236,10 @@ def format_wolfram_data():
 
     # df.to_csv(r'C:\temp\df_right_before_save.csv')
 
-    redcap_common.write_results_and_open(df, args.output_file)
+    # make output_file name
+    output_file = args.input_file.replace('.csv','{}{}{}.csv'.format(dur_label, flatten_label, mri_label))
+
+    redcap_common.write_results_and_open(df, output_file)
 
 
 format_wolfram_data()
