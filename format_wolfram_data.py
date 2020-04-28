@@ -196,6 +196,7 @@ def format_wolfram_data():
     df = df.drop(['dob'], axis=1)
     df = df.drop(['clinic_date'], axis=1)
     df = df.drop(['mri_date'], axis=1)
+    df = df.drop(['redcap_event_name'], axis=1)
 
     # drop non-MRI sessions
     if args.drop_non_mri:
