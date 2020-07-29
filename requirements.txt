@@ -12,5 +12,5 @@ pywin32
 requests
 scipy
 subprocess32
-wxPython
+wxPython==4.0.7
 xlrd
