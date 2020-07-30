@@ -200,10 +200,10 @@ def format_wolfram_data():
     df = df.rename(columns={"session_age": "clinic_age"})
 
     # remove dob, clinic date and MRI date
-    df = df.drop(['dob'], axis=1)
-    df = df.drop(['clinic_date'], axis=1)
-    df = df.drop(['mri_date'], axis=1)
-    df = df.drop(['redcap_event_name'], axis=1)
+    df = df.drop(['dob'], axis=1, errors="ignore")
+    df = df.drop(['clinic_date'], axis=1, errors="ignore")
+    df = df.drop(['mri_date'], axis=1, errors="ignore")
+    df = df.drop(['redcap_event_name'], axis=1, errors="ignore")
 
     # drop non-MRI sessions
     if args.drop_non_mri:
