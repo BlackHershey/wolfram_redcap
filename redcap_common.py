@@ -205,6 +205,14 @@ def flatten(df, sort=True, prefix=''):
     df = df.dropna(axis=1, how='all')
     return df
 
+# re-shape dataframe such that there is one row per participant (each row contains all sessions)
+def simple_flatten(df, sort=True, prefix=''):
+    df = df.unstack()
+    if sort:
+        df = df.sort_index(1, level=1)
+    df.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df.columns ] # append unstacked index to front of column name
+    df = df.dropna(axis=1, how='all')
+    return df
 
 # reshape dataframe such that there is one row per participant per session
 def expand(df):
