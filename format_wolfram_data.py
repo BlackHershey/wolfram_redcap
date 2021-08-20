@@ -56,7 +56,7 @@ def get_clinic_year(row):
 @Gooey(default_size=(700,600))
 def format_wolfram_data():
     # set up expected arguments and associated help text
-    parser = GooeyParser(description='Formats Wolfram data from REDCap csv export')
+    parser = GooeyParser(description='Formats Wolfram data from REDCap csv export\n********************\nNOTE: Input file must contain both stable and clinic-year data, and also include wolfram_sessionnumber.\n********************')
     required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
     required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
     # required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
