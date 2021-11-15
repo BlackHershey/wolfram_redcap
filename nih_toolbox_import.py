@@ -3,6 +3,7 @@ from os import listdir
 from os.path import join, exists
 
 import pandas as pd
+import numpy as np
 import re
 import redcap_common
 
@@ -40,15 +41,17 @@ def replace_variables(df, var_map):
 
 def get_session_number(pin):
 	session = re.search(r'(s\d?)', pin, flags=re.IGNORECASE)
-	return session.group().lower() if session else 's1'
+	return session.group().lower() if session else '1'
 
 
 def extract_id_and_session(df):
 	# df['session_number'] = df['newt_id'].apply(get_session_number)
 	# df['newt_id'] = df['newt_id'].apply(lambda x: re.match('(NEWT *\d{3}?)', x, flags=re.IGNORECASE).group().upper().replace(' ', ''))
-	df[['newt_id', 'session_number']] = df['newt_id'].str.extract(r'(\w* ?\d+)(?:_| )(s\d)', flags=re.IGNORECASE)
+	# print('newt_id = {}'.format(df['newt_id']))
+	df[['newt_id', 'session_number']] = df['newt_id'].str.extract(r'(?P<newt_id>\w{0,4} ?\d{1,4})?(?:_| |-)?(?:s?)?(?P<session_number>\d?)', flags=re.IGNORECASE)
 	df['newt_id'] = df['newt_id'].apply(lambda x: x.replace(' ', '').upper())
-	df['session_number'] = df['session_number'].fillna('s1').str.lower()
+	df['session_number'] = df['session_number'].replace(r'^\s*$', np.NaN, regex=True).fillna('1').str.lower()
+	# df.to_csv('after_replace_s1.csv')
 	return df
 
 
@@ -56,12 +59,14 @@ def nih_toolbox_import(exports_folder, subjects):
 	result = None
 	exports = [ f for f in listdir(exports_folder) if f.endswith('.csv') ]
 	for export in exports:
-		print('Processing:', export)
+		print('Processing: ', export)
 		df = pd.read_csv(join(exports_folder, export)).dropna(how='all')
 		if UNADJUSTED not in df.columns:
 			continue
 
+		# df.to_csv('df_before_rename.csv')
 		df = df.rename(columns={'PIN': 'newt_id',  'RawScore': 'raw', 'TScore': 'tscore'})
+		# df.to_csv('df_after_rename.csv')
 		parent_df = df[df['newt_id'].str.contains('parent', flags=re.IGNORECASE)]
 		subject_df = df[~df['newt_id'].isin(parent_df['newt_id'])]
 
@@ -73,6 +78,7 @@ def nih_toolbox_import(exports_folder, subjects):
 
 		if not subject_df.empty:
 			subject_df = subject_df.groupby('newt_id').apply(lambda x: replace_variables(x, subject_vars) if len(x) > 4 else replace_variables(x, parent_vars))
+			# subject_df.to_csv('subject_df_before_extract.csv')
 			subject_df = extract_id_and_session(subject_df)
 		else:
 			subject_df = None
@@ -91,7 +97,8 @@ def nih_toolbox_import(exports_folder, subjects):
 	result = result[score_cols]
 
 	result = result.dropna(how='all', subset=score_cols)
-	result = redcap_common.flatten(redcap_common.flatten(result))
+	# result.to_csv('result_before_flatten.csv')
+	result = redcap_common.simple_flatten(redcap_common.simple_flatten(result),True,'s')
 
 	# perform renames - no session numbers and changes suffixes for parent iq columns, cog_crystal order change for ageadj column,
 	#	remove raw suffix for self_neuroqol column
@@ -120,6 +127,6 @@ def parse_args():
 if __name__ == '__main__':
 	args = parse_args()
 	if not exists(args.exports_folder):
-		parser.error('Specified folder does not exist.')
+		parse_args.error('Specified folder does not exist.')
 
 	nih_toolbox_import(args.exports_folder, args.subjects)
