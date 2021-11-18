@@ -68,6 +68,13 @@ def nih_toolbox_import(exports_folder, subjects):
 
 		# df.to_csv('df_before_rename.csv')
 		df = df.rename(columns={'PIN': 'newt_id',  'RawScore': 'raw', 'TScore': 'tscore'})
+
+		# check for S2 mismatch
+		if ( 'S2' in export.upper()):
+			S2_mismatch = True in ( 'S2' not in newt_id.upper() for newt_id in df['newt_id'].drop_duplicates().tolist() )
+			if S2_mismatch:
+				print('WARNING: S2 mismatch detected in "{}", check csv file'.format(export))
+
 		# df.to_csv('df_after_rename.csv')
 		parent_df = df[df['newt_id'].str.contains('parent', flags=re.IGNORECASE)]
 		# parent_df.to_csv('parent_df.csv')
