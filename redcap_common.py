@@ -199,40 +199,50 @@ def check_for_any(df, any_vars, project, cast_numeric=False):
 
 
 # re-shape dataframe such that there is one row per participant (each row contains all sessions)
-def flatten(df, flatten_by_column, sort=True, prefix=''):
+def flatten(df, flatten_by_column, sort=True, prefix='', study_id=STUDY_ID):
     # assume session_number = 0 is "stable" arm (things that don't change over time)
     # assume session_number > 0 is some longitudinal variable (like session number or clinic year)
   
     # select session_number = 0 into df_stable
-    df_stable = df[df[flatten_by_column]==0]
+    # assume there is stable data
+    stable_data_present = True
+    try:
+        df_stable = df[df[flatten_by_column]==0]
+        # drop blank columns???
+        df_stable = df_stable.dropna(axis=1, how='all')
+        df_stable.set_index([study_id, flatten_by_column], inplace=True)
+        df_stable = df_stable.unstack()
+    except KeyError:
+        # this means there is no session 0
+        print("Flatten: No session 0")
+        stable_data_present = False
 
-     # drop blank columns???
-    df_stable = df_stable.dropna(axis=1, how='all')
-
-    df_stable.set_index([STUDY_ID, flatten_by_column], inplace=True)
-    df_stable = df_stable.unstack()
-
-    # select session_number != 0 into df_long
+    # select session_number > 0 into df_long
+    print(df)
     df_long = df[df[flatten_by_column]>0]
 
     # drop blank columns???
     df_long = df_long.dropna(axis=1, how='all')
 
-    df_long.set_index([STUDY_ID, flatten_by_column], inplace=True)
+    df_long.set_index([study_id, flatten_by_column], inplace=True)
     df_long = df_long.unstack()
 
     if sort:
-        df_stable = df_stable.sort_index(1, level=1)
+        if stable_data_present:
+            df_stable = df_stable.sort_index(1, level=1)
         df_long = df_long.sort_index(1, level=1)
-    df_stable.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df_stable.columns ] # append unstacked index to front of column name
+    
     df_long.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df_long.columns ]
 
-    # merge stable and long back together
-    df = pd.merge(df_stable, df_long, how='inner', on=STUDY_ID)
-
-    # remove s0_clinic_year and s0_session_number
-    df = df.drop(['{}0_clinic_year'.format(prefix)], axis=1, errors='ignore')
-    df = df.drop(['{}0_wolfram_sessionnumber'.format(prefix)], axis=1, errors='ignore')
+    if stable_data_present:
+        df_stable.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df_stable.columns ] # append unstacked index to front of column name
+        # merge stable and long back together
+        df = pd.merge(df_stable, df_long, how='inner', on=study_id)
+        # remove s0_clinic_year and s0_session_number
+        df = df.drop(['{}0_clinic_year'.format(prefix)], axis=1, errors='ignore')
+        df = df.drop(['{}0_wolfram_sessionnumber'.format(prefix)], axis=1, errors='ignore')
+    else:
+        df = df_long
 
     return df
 
