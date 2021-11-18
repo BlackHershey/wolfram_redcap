@@ -59,20 +59,24 @@ def nih_toolbox_import(exports_folder, subjects):
 	result = None
 	exports = [ f for f in listdir(exports_folder) if f.endswith('.csv') ]
 	for export in exports:
-		print('Processing: ', export)
 		df = pd.read_csv(join(exports_folder, export)).dropna(how='all')
 		if UNADJUSTED not in df.columns:
+			print('WARNING: SKIPPING "{}", Column named "{}" not found'.format(export,UNADJUSTED))
 			continue
+		else:
+			print('Processing: "{}"'.format(export))
 
 		# df.to_csv('df_before_rename.csv')
 		df = df.rename(columns={'PIN': 'newt_id',  'RawScore': 'raw', 'TScore': 'tscore'})
 		# df.to_csv('df_after_rename.csv')
 		parent_df = df[df['newt_id'].str.contains('parent', flags=re.IGNORECASE)]
+		# parent_df.to_csv('parent_df.csv')
 		subject_df = df[~df['newt_id'].isin(parent_df['newt_id'])]
 
 		if not parent_df.empty:
 			parent_df = replace_variables(parent_df, parent_vars)
 			parent_df = extract_id_and_session(parent_df)
+			# print(export, " contains parent data")
 		else:
 			parent_df = None
 
