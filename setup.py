@@ -48,6 +48,7 @@ setup(
 			'include_msvcr': True,
 			'includes': additional_mods,
 			'packages': ['idna', 'numpy'],
+			'excludes': ['matplotlib.tests', 'numpy.random_examples'],
 			'include_files': include_files
 		}
 	},
