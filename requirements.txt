@@ -3,6 +3,7 @@ Gooey
 idna
 matplotlib
 numpy
+openpyxl
 pandas
 Pillow
 PyCap
