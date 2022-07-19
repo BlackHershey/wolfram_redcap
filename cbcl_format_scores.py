@@ -102,6 +102,11 @@ def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
 
     outroot = os.path.splitext(datafile)[0]
 
+    # fix yes/no field
+    if 'cbcl_age_6_18_yn' in df.columns:
+        print('fixing cbcl_age_6_18_yn y/n')
+        df['cbcl_age_6_18_yn'] = df['cbcl_age_6_18_yn'].astype('int', errors='ignore')
+
     # write to output csv file
     df.to_csv('{}_import.csv'.format(outroot))
 
