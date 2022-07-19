@@ -101,7 +101,9 @@ def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
         df = redcap_common.flatten(df)
 
     outroot = os.path.splitext(datafile)[0]
-    df.to_csv(outroot + '_import.csv')
+
+    # write to output csv file
+    df.to_csv('{}_import.csv'.format(outroot))
 
 
 @Gooey()
