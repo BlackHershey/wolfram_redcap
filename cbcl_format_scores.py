@@ -98,7 +98,7 @@ def gen_import_file(datafile, varfile, study_name, form_type, flatten=False):
 
     # Flatten dataframe for multi-session databases NOT in longitudinal format
     if flatten:
-        df = redcap_common.flatten(df)
+        df = redcap_common.simple_flatten(df)
 
     outroot = os.path.splitext(datafile)[0]
 
