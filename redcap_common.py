@@ -206,9 +206,9 @@ def flatten(df, flatten_by_column, sort=True, prefix=''):
     # select session_number = 0 into df_stable
     df_stable = df[df[flatten_by_column]==0]
 
-     # drop blank columns???
+    # drop blank columns???
     df_stable = df_stable.dropna(axis=1, how='all')
-
+    
     df_stable.set_index([STUDY_ID, flatten_by_column], inplace=True)
     df_stable = df_stable.unstack()
 
