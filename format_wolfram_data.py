@@ -210,8 +210,6 @@ def format_wolfram_data():
         df = df[(df[MRI_AGE]>0.0) | (df['clinic_year']==0)]
         mri_label = '_just_mri'
 
-    # df.to_csv(r'C:\temp\df_before_flatten.csv')
-
     # puts all sessions/clinic years for a participant on one line (suffixed with year/session)
     if args.flatten:
         # multi-index column for flattening
@@ -233,8 +231,6 @@ def format_wolfram_data():
 
     if args.transpose:
         df = df.transpose()
-
-    # df.to_csv(r'C:\temp\df_right_before_save.csv')
 
     # make output_file name
     output_file = args.input_file.replace('.csv','{}{}{}.csv'.format(dur_label, flatten_label, mri_label))
