@@ -131,7 +131,7 @@ def format_wolfram_data():
     if args.consecutive is not None and args.consecutive not in range(2, num_clinic_years + 1):
         parser.error('Consecutive years must be greater than 1 and cannot exceed number of clinic years ({})'.format(num_clinic_years))
 
-    df.loc[(df['redcap_event_name'] == 'stable_patient_cha_arm_1'), [redcap_common.SESSION_NUMBER]] = df.loc[(df['redcap_event_name'] == 'stable_patient_cha_arm_1'), [redcap_common.SESSION_NUMBER]].fillna(0)
+    df.loc[(df['redcap_event_name'] == 'stable_arm_1'), [redcap_common.SESSION_NUMBER]] = df.loc[(df['redcap_event_name'] == 'stable_arm_1'), [redcap_common.SESSION_NUMBER]].fillna(0)
     # remove rows for sessions not attended (will have a flag saying they did not attend)
     df = df[pd.notnull(df[redcap_common.SESSION_NUMBER])]
     df = df[pd.isnull(df[MISSED_SESSION])]
@@ -147,7 +147,7 @@ def format_wolfram_data():
         for dx_type in args.dx_types:
             dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
             # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
-            dx_age_df = df.loc[df['redcap_event_name'] == 'stable_patient_cha_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
+            dx_age_df = df.loc[df['redcap_event_name'] == 'stable_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
             if args.duration_type == 'clinic date':
                 dur_label = '_clinic_duration'
                 dx_type_clinic = '_'.join([dx_type, 'clinic'])
