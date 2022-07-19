@@ -2,10 +2,9 @@ import numpy as np
 import pandas as pd
 import re
 
-from datetime import datetime
-from getpass import getpass, getuser
+from getpass import getpass
 from itertools import groupby, chain
-from redcap import Project, RedcapError
+from redcap import Project
 from subprocess import Popen
 from sys import exit, stderr
 

@@ -6,7 +6,6 @@ import shutil
 
 from gooey import Gooey, GooeyParser
 from wfs_db_migration import replace_values
-from zipfile import ZipFile
 
 STATIC_FOLDER = r'//neuroimage.wustl.edu/nil/hershey/H/REDCap Scripts/static/'
 JSON_MAPFILE = os.path.join(STATIC_FOLDER, 'ASEBA_json_mapping.csv')

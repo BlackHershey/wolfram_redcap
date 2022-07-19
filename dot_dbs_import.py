@@ -1,5 +1,4 @@
 from gooey import Gooey, GooeyParser
-from numpy import nan
 from os import chdir, getcwd, listdir
 from os.path import join, exists
 from stringcase import titlecase

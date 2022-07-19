@@ -1,16 +1,9 @@
-import datetime
-import re
-import time
 import redcap_common
 
 import numpy as np
 import pandas as pd
 
-from getpass import getpass, getuser
 from gooey import Gooey, GooeyParser
-from itertools import chain, groupby
-from redcap import Project, RedcapError
-from subprocess import Popen
 from sys import exit, stderr
 
 # API constants

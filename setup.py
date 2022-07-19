@@ -1,6 +1,6 @@
 import os
 import sys
-from cx_Freeze import hooks, setup, Executable
+from cx_Freeze import setup, Executable
 import matplotlib
 import gooey
 
