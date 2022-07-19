@@ -2,7 +2,6 @@ import os
 import sys
 from cx_Freeze import hooks, setup, Executable
 import matplotlib
-import glob
 import gooey
 
 from getpass import getuser

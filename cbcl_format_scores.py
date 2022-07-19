@@ -1,13 +1,8 @@
-import json
-import numpy as np
 import os
 import pandas as pd
 import redcap_common
-import shutil
 
 from gooey import Gooey, GooeyParser
-from wfs_db_migration import replace_values
-from zipfile import ZipFile
 
 STATIC_FOLDER = r'//neuroimage.wustl.edu/nil/hershey/H/REDCap Scripts/static/'
 VARFILE_TEMPLATE = '{}_{}_column_map.csv'
