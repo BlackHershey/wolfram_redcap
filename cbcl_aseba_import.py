@@ -109,7 +109,7 @@ def parse_args():
     parser = GooeyParser(description='Format redcap CBCL export for ASEBA import')
     required = parser.add_argument_group('Required Arguments')
     required.add_argument('--redcap_export', required=True, widget='FileChooser', help='Demographics + CBCL export from REDCap')
-    required.add_argument('--study_name', required=True, choices=['NEWT', 'NT', 'other'])
+    required.add_argument('--study_name', required=True, choices=['METABRAIN', 'NEWT', 'NT', 'other'])
     required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
     required.add_argument('--outdir', widget='DirChooser', required=True, help='where to store output zip')
 
