@@ -117,11 +117,11 @@ def parse_args():
 
     required = parser.add_argument_group('Required arguments')
     required.add_argument('--aseba_export', required=True, widget='FileChooser', help='Excel scores export from ASEBA')
-    required.add_argument('--study_name', required=True, choices=['NEWT', 'NT', 'other'])
-    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
+    required.add_argument('--study_name', required=True, choices=['METABRAIN', 'NEWT', 'NT', 'other'])
+    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl', 'ysr'])
 
     other = parser.add_argument_group('Other study options (can ignore if using named study)', gooey_options={'columns':1})
-    other.add_argument('--varfile', widget='FileChooser', help='csv file with REDCap to ASEBA mapping (see H:/REDCap Scripts/static/*cbcl_column_map.csv for examples)')
+    other.add_argument('--varfile', widget='FileChooser', help='csv file with REDCap to ASEBA mapping (see H:/REDCap Scripts/static/*_column_map.csv for examples)')
     other.add_argument('--wide', action='store_true', help='if REDCap has multiple sessions per row (vs each session on own line)')
     args = parser.parse_args()
 
