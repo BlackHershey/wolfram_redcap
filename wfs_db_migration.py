@@ -22,14 +22,15 @@ def get_data_dict_options_map(change_df, variable):
     #return { get_typed_option(opt[0]): get_typed_option(opt[-1]) for opt in options }
 
 
-def replace_values(df, change_df, index_col='new_var'):
+def replace_values(df, change_df, index_col='new_var', verbose=False):
     replace_value_vars = list(change_df.dropna(subset=['opt_replacements'])[index_col].values)
     change_df = change_df.set_index(index_col)
     for var in replace_value_vars:
         if not var in df:
             continue
         replacement_map = get_data_dict_options_map(change_df, var)
-        print(var, replacement_map)
+        if verbose:
+            print(var, replacement_map)
         df[var] = df[var].replace(replacement_map)
     return df
 

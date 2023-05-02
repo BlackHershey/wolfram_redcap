@@ -29,7 +29,7 @@ executables = [
 	Executable('format_track_data.py', base=base),
 	Executable('nih_toolbox_import.py', base=base),
 	Executable('dot_dbs_import.py', base=base),
-    Executable('cbcl_aseba_import.py', base=base),
+    Executable('prepare_aseba_import.py', base=base),
 	Executable('cbcl_format_scores.py', base=base),
 	Executable('redcap2spss.py', base=base),
 	Executable('extract_form_fields.py', base=base),
@@ -39,7 +39,7 @@ executables = [
 
 setup(
 	name = 'redcap scripts',
-    version = "1.0",
+    version = "1.1.0",
     description = 'redcap scripts',
     options = {
 		'build_exe': {

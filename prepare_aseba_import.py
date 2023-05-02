@@ -19,6 +19,10 @@ FORM_LUT = {
     'ycbcl': {
         'FormInstrumentId': '35aebf67-0ec4-407a-a240-1966a4852031',
         'fname_id': 6001
+    },
+    'ysr': {
+        'FormInstrumentId': '69e3fe20-0206-4a5b-a62e-abcaed7aab79',
+        'fname_id': 5001
     }
 }
 
@@ -30,15 +34,15 @@ def write_json(row, var_lut, outdir, form_ins_id):
     for col in row.axes[0].tolist():
         if col not in var_lut or pd.isnull(row[col]):
             continue
-
+        
         try:
             val = float(row[col])
             val = int(val)
         except:
             val = row[col]
-
+        
         answers.append({
-            'QuestionId': var_lut[col],
+            'QuestionId': int(var_lut[col]),
             'Value': str(val),
             'Comments': []
         })
@@ -65,11 +69,16 @@ def write_json(row, var_lut, outdir, form_ins_id):
     return
 
 
-def gen_import_file(datafile, varfile, form_type, outdir, expand=False):
+def gen_import_file(datafile, varfile, form_type, outdir, expand=False, verbose=False):
     df = pd.read_csv(datafile, dtype="object")
     change_df = pd.read_csv(varfile)
     json_df = pd.read_csv(JSON_MAPFILE)
     change_df = change_df.merge(json_df, left_on='aseba_var', right_on='aseba_var')
+
+    if verbose:
+        print('#### read data file: {}'.format(datafile))
+        print('#### read  var file: {}'.format(varfile))
+        print('#### read json file: {}'.format(JSON_MAPFILE))
 
     df.columns.values[0] = redcap_common.STUDY_ID
     if expand:
@@ -87,7 +96,7 @@ def gen_import_file(datafile, varfile, form_type, outdir, expand=False):
 
     drop_cols = [ col for col in df if col not in change_df['redcap_var'].values ]
     df = df.drop(columns=drop_cols)
-    df = df.dropna(how='all', subset=[col for col in df.columns if 'cbcl' in col])
+    df = df.dropna(how='all', subset=[col for col in df.columns if 'cbcl' in col or 'ysr' in col])
     df = replace_values(df, change_df, index_col='redcap_var')
 
     outroot = 'aseba_import'
@@ -106,11 +115,11 @@ def gen_import_file(datafile, varfile, form_type, outdir, expand=False):
 
 @Gooey()
 def parse_args():
-    parser = GooeyParser(description='Format redcap CBCL export for ASEBA import')
+    parser = GooeyParser(description='Format redcap CBCL/YSR export for ASEBA import')
     required = parser.add_argument_group('Required Arguments')
-    required.add_argument('--redcap_export', required=True, widget='FileChooser', help='Demographics + CBCL export from REDCap')
+    required.add_argument('--redcap_export', required=True, widget='FileChooser', help='Demographics + CBCL/YSR export from REDCap')
     required.add_argument('--study_name', required=True, choices=['METABRAIN', 'NEWT', 'NT', 'other'])
-    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl'])
+    required.add_argument('--form_type', required=True, choices=['cbcl', 'ycbcl', 'ysr'])
     required.add_argument('--outdir', widget='DirChooser', required=True, help='where to store output zip')
 
     other = parser.add_argument_group('Other study options (can ignore if using named study)', gooey_options={'columns':1})
