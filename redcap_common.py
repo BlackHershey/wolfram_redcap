@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import re
 
 from getpass import getpass
@@ -203,7 +204,11 @@ def flatten(df, flatten_by_column, sort=True, prefix=''):
     # assume session_number > 0 is some longitudinal variable (like session number or clinic year)
   
     # select session_number = 0 into df_stable
-    df_stable = df[df[flatten_by_column]==0]
+    
+    if is_numeric_dtype(df[flatten_by_column]):
+        df_stable = df[df[flatten_by_column]==0]
+    else:
+        df_stable = df[df[flatten_by_column]=='0']
 
     # drop blank columns???
     df_stable = df_stable.dropna(axis=1, how='all')
@@ -212,7 +217,10 @@ def flatten(df, flatten_by_column, sort=True, prefix=''):
     df_stable = df_stable.unstack()
 
     # select session_number != 0 into df_long
-    df_long = df[df[flatten_by_column]>0]
+    if is_numeric_dtype(df[flatten_by_column]):
+        df_long = df[df[flatten_by_column]>0]
+    else:
+        df_long = df[df[flatten_by_column]!='0']
 
     # drop blank columns???
     df_long = df_long.dropna(axis=1, how='all')
