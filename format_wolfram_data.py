@@ -2,12 +2,10 @@ import redcap_common
 
 import numpy as np
 import pandas as pd
+import re
 
 from gooey import Gooey, GooeyParser
 from sys import exit, stderr
-
-# API constants
-URL = 'https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/'
 
 # Redcap constants
 WFS_STUDY_ID = 'study_id'
@@ -15,16 +13,10 @@ WFS_CLINIC_YEAR = 'wfs_clinic_year'
 WFS_SESSION_NUMBER = 'wolfram_sessionnumber'
 MISSED_SESSION = 'missed_session'
 
-ALL_DX_TYPES = ['wfs', 'dm', 'di', 'hearloss', 'oa', 'bladder']
-NON_DX_FIELDS_FOR_DURATION = ['dob', 'clinic_date']
-
 RENAMES = [None, WFS_CLINIC_YEAR, None, 'clinic_date', WFS_SESSION_NUMBER]
 
 MRI_DATE = 'mri_date'
 MRI_AGE = 'mri_age'
-
-def get_dx_column(dx_type, measure):
-    return '_'.join(['dx', dx_type, measure])
 
 def mri_age_calc(df):
     df[MRI_DATE] = pd.to_datetime(df[MRI_DATE], errors='coerce')
@@ -39,33 +31,33 @@ def select_best_age(row):
     else:
         return row['session_age']
 
-def get_clinic_year(row):
+def get_clinic_year_label(row):
     clinic_year = row['redcap_event_name'][0:4]
     if clinic_year == 'stab':
-        clinic_year = '0'
-    return int(clinic_year)
+        clinic_label = '0'
+    elif clinic_year == 'mini':
+        clinic_label = 'mc{}'.format(row['redcap_event_name'][12])
+    else:
+        clinic_label = '{}'.format(clinic_year)
+    return clinic_label
 
 
 @Gooey(default_size=(700,600))
 def format_wolfram_data():
     # set up expected arguments and associated help text
-    parser = GooeyParser(description='Formats Wolfram data from REDCap csv export\n********************\nNOTE: Input file must contain both stable and clinic-year data, and also include wolfram_sessionnumber.\n********************')
+    parser = GooeyParser(description='Formats Wolfram data from REDCap csv export\n********************\nNOTE: Input REDCap file must contain both stable (e.g. sex) and clinic-year data, and also include wolfram_sessionnumber.\n********************')
     required = parser.add_argument_group('Required Arguments', gooey_options={'columns':1})
-    required.add_argument('--input_file', required=True, widget='FileChooser', help='REDCap export file')
+    required.add_argument('--input_file', required=True, widget='FileChooser', gooey_options={'wildcard':"Comma separated file (*.csv)|*.csv|"}, help='REDCap-exported csv file')
     # required.add_argument('--output_file', required=True, widget='FileChooser', help='CSV file to store formatted data in')
 
     optional = parser.add_argument_group('Optional Arguments', gooey_options={'columns':1})
     optional.add_argument('-c', '--consecutive', type=int, metavar='num_consecutive_years', help='Limit results to particpants with data for a number of consecutive years')
-    optional.add_argument('-d', '--duration', nargs='*', dest='dx_types',  widget='Listbox', default=None, choices=ALL_DX_TYPES, help='Calculate diagnosis duration for specified diagnosis types')
-    # optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date','MRI date if available, otherwise clinic date ("mri_or_clinic")'], help='Visit date to use when calculating dx durations')
-    optional.add_argument('--duration-type', dest='duration_type', default='clinic date', choices=['clinic date','MRI date'], help='Visit date to use when calculating dx durations')
     optional.add_argument('--drop_non_mri', action='store_true', help='Drop all sessions that do not have an "mri_date" entry.')
-    optional.add_argument('--old-db', action='store_true', help='whether data was sourced from old Wolfram database')
-    optional.add_argument('--api_token', widget='PasswordField', help='REDCap API token (if not specified, will not pull anything from REDCap)')
+    # optional.add_argument('--api_token', widget='PasswordField', help='REDCap API token (if not specified, will not pull anything from REDCap)')
 
-    variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
-    variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
-    variable_options.add_argument('--any', nargs='+', default=None, help='At least one specified data point required for participant to be included in result')
+    # variable_options = parser.add_argument_group('Variable options', 'Space-separated lists of data points (category, column prefix, and/or variable) participants must have data for in export', gooey_options={'columns':1, 'show_border':True})
+    # variable_options.add_argument('--all', nargs='+', default=None, help='All specified data points required for participant to be included in result')
+    # variable_options.add_argument('--any', nargs='+', default=None, help='At least one specified data point required for participant to be included in result')
 
     format_options = parser.add_argument_group('Formatting options', gooey_options={'columns':2, 'show_border':True})
     format_options.add_argument('-f', '--flatten', action='store_true', help='Arrange all session data in single row for participant')
@@ -79,95 +71,38 @@ def format_wolfram_data():
     flatten_label = ''
     mri_label = ''
 
-    if not args.old_db:
-        print('### "old_db" not checked, only pulling data from the "new" database ###')
-
     if not args.input_file.endswith('.csv'):
-        parser.error('Input file must be of type csv')
+        parser.error('ERROR: Input file must be a csv exported from REDCap')
 
     # create dataframe from REDCap data
     df = redcap_common.create_df(args.input_file)
-    df = df[df[WFS_STUDY_ID].str.contains(r'WOLF_\d{4}_.+')] # remove Test and Wolf_AN rows
+    df = df.drop(['redcap_repeat_instrument'], axis=1, errors="ignore")
+    df = df.drop(['redcap_repeat_instance'], axis=1, errors="ignore")
+    df = df[df[WFS_STUDY_ID].str.contains(r'^(WOLF|SIB)_\d{4}_.+')] # remove Test and Wolf_AN rows
+    df = df.rename(columns={WFS_SESSION_NUMBER: redcap_common.SESSION_NUMBER, WFS_STUDY_ID: redcap_common.STUDY_ID})
+    arm_tail_pattern = re.compile(r'_arm_.')
+    df['redcap_event_name'] = df['redcap_event_name'].str.replace(arm_tail_pattern,'', regex=True)
     num_clinic_years = len(df['redcap_event_name'].unique())-1  # FIXME: should be counting max number of sessions for participants (still may cause error because they might not be consecutive)
-    print('### Number of clinic years detected = {} ###'.format(num_clinic_years))
+    print('### Number of clinic years detected in file = {} ###'.format(num_clinic_years))
 
     # get number of subjects in dataframe
     num_subjects = len(df[WFS_STUDY_ID].unique())
     print('### Number of subjects detected in {} = {} ###'.format(args.input_file,num_subjects))
 
-    # only create API project if actions require it and data needed is not already present, AND if API token is given
-    project = None
-    # check for fields missing from csv df
-    fields = [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] if WFS_SESSION_NUMBER not in df.columns else [] # always need to get session number if not in data (used to determine which rows to keep)
-    if MISSED_SESSION not in df.columns:
-        fields.append(MISSED_SESSION) # need missed_session var to remove rows for unattended session
-    if args.dx_types is not None:
-        for dx_type in args.dx_types:
-            dx_age_field = get_dx_column(dx_type, 'best_age_calc')
-            if dx_age_field not in df.columns:
-                fields.append(dx_age_field)
-        for non_dx_field in NON_DX_FIELDS_FOR_DURATION:
-            if non_dx_field not in df.columns:
-                fields.append(non_dx_field)
-    if fields: # missing some fields, go get from REDCap
-        print('### need to get some fields from REDCap ###')
-        if args.api_token == "":
-            raise RuntimeError("Thre are missing fields in the input csv, so we need to get data from REDCap, but no API token is given. Ask Jon about REDCap API access.")
-        else:
-            redcap_project_key = 'itrack' if not args.old_db else 'wolfram'
-            project = project if project else redcap_common.get_redcap_project(redcap_project_key, args.api_token)
-            df = redcap_common.merge_api_data(df, project, fields, [WFS_STUDY_ID, 'redcap_event_name'])
-
-    # rename common columns after api merge to ensure column names match up
-    df = redcap_common.rename_common_columns(df, RENAMES, False)
-
     if args.consecutive is not None and args.consecutive not in range(2, num_clinic_years + 1):
         parser.error('Consecutive years must be greater than 1 and cannot exceed number of clinic years ({})'.format(num_clinic_years))
 
-    df.loc[(df['redcap_event_name'] == 'stable_arm_1'), [redcap_common.SESSION_NUMBER]] = df.loc[(df['redcap_event_name'] == 'stable_arm_1'), [redcap_common.SESSION_NUMBER]].fillna(0)
+    df.loc[(df['redcap_event_name'] == 'stable'), [redcap_common.SESSION_NUMBER]] = df.loc[(df['redcap_event_name'] == 'stable'), [redcap_common.SESSION_NUMBER]].fillna(0)
     # remove rows for sessions not attended (will have a flag saying they did not attend)
     df = df[pd.notnull(df[redcap_common.SESSION_NUMBER])]
     df = df[pd.isnull(df[MISSED_SESSION])]
     df[redcap_common.SESSION_NUMBER] = df[redcap_common.SESSION_NUMBER].astype(int) # once NANs are gone, we can cast as int (nicer for flatten display)
 
-    # if duration argument specified, calculate diagnosis duration for types specified or all (if none specified)
-    if args.dx_types is not None: # explicit None check because empty array is valid
-        # this puts a 'session_age' field into the df using dob and session_date (where session_date is from clinic_date)
-        df = redcap_common.prepare_age_calc(df)
-        df = mri_age_calc(df)
-        if args.duration_type == 'MRI date if available, otherwise clinic date ("mri_or_clinic")':
-            df['mri_or_clinic_age'] = df.apply(lambda row: select_best_age(row), axis = 1)
-        for dx_type in args.dx_types:
-            dx_vars = { 'dx_age': get_dx_column(dx_type, 'best_age_calc') }
-            # df[dx_vars['dx_date']] = pd.to_datetime(df[dx_vars['dx_date']], errors='coerce')
-            dx_age_df = df.loc[df['redcap_event_name'] == 'stable_arm_1'].apply(redcap_common.get_diagnosis_age, args=(dx_vars,), axis=1)
-            if args.duration_type == 'clinic date':
-                dur_label = '_clinic_duration'
-                dx_type_clinic = '_'.join([dx_type, 'clinic'])
-                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_clinic, dx_age_df, 'session_age')
-                dx_dur_field = get_dx_column(dx_type, 'clinic_duration')
-                df.loc[~(df[dx_dur_field] > 0), dx_dur_field]=np.nan
-            elif args.duration_type == 'MRI date':
-                dur_label = '_mri_duration'
-                dx_type_mri = '_'.join([dx_type, 'mri'])
-                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri, dx_age_df, 'mri_age')
-                dx_mri_dur_field = get_dx_column(dx_type, 'mri_duration')
-                df.loc[~(df[dx_mri_dur_field] > 0), dx_mri_dur_field]=np.nan
-            elif args.duration_type == 'MRI date if available, otherwise clinic date ("mri_or_clinic")':
-                dur_label = '_mri_or_clinic_duration'
-                dx_type_mri_or_clinic = '_'.join([dx_type, 'mri_or_clinic'])
-                df = df.groupby([redcap_common.STUDY_ID]).apply(redcap_common.calculate_diagnosis_duration, dx_type_mri_or_clinic, dx_age_df, 'mri_or_clinic_age')
-                dx_best_dur_field = get_dx_column(dx_type, 'mri_or_clinic_duration')
-                df.loc[~(df[dx_best_dur_field] > 0), dx_best_dur_field]=np.nan
-            else:
-                raise Exception("ERROR: dx_types chosen, but no duration_type chosen")
-        # df = df.drop(['session_age', 'redcap_event_name'], axis=1)
-
     # if varaibles are specified, filter out rows that don't have data for them (if null or non-numeric)
-    if args.all:
-        df = redcap_common.check_for_all(df, args.all, project, True)
-    if args.any:
-        df = redcap_common.check_for_any(df, args.any, project, True)
+    # if args.all:
+    #    df = redcap_common.check_for_all(df, args.all, project, True)
+    # if args.any:
+    #    df = redcap_common.check_for_any(df, args.any, project, True)
 
     # remove session data for participants that did not occur in consecutive years
     if args.consecutive:
@@ -178,16 +113,10 @@ def format_wolfram_data():
         exit(1)
 
     # add clinic_year
-    df['clinic_year'] = df.apply(lambda row: get_clinic_year(row), axis = 1)
+    df['clinic_year'] = df.apply(lambda row: get_clinic_year_label(row), axis = 1)
 
     # rename common columns back to original names
     df = redcap_common.rename_common_columns(df, RENAMES, True)
-
-    # if we have brought in dx info/demographics from the API, remove it after the calculation and rename columns that were suffixed due to merge
-    if not fields == [WFS_SESSION_NUMBER, WFS_CLINIC_YEAR] and args.api_token: # don't need to go through deletion logic if only field is session number
-        if WFS_SESSION_NUMBER in fields:
-            fields.remove(WFS_SESSION_NUMBER) # remove session number from fields
-        df = redcap_common.cleanup_api_merge(df, fields)
 
     # rename session_age to clinic_age
     df = df.rename(columns={"session_age": "clinic_age"})
@@ -229,6 +158,5 @@ def format_wolfram_data():
     output_file = args.input_file.replace('.csv','{}{}{}.csv'.format(dur_label, flatten_label, mri_label))
 
     redcap_common.write_results_and_open(df, output_file)
-
 
 format_wolfram_data()
