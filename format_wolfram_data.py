@@ -78,7 +78,8 @@ def format_wolfram_data():
     df = redcap_common.create_df(args.input_file)
     df = df.drop(['redcap_repeat_instrument'], axis=1, errors="ignore")
     df = df.drop(['redcap_repeat_instance'], axis=1, errors="ignore")
-    df = df[df[WFS_STUDY_ID].str.contains(r'^(WOLF|SIB)_\d{4}_.+')] # remove Test and Wolf_AN rows
+    # df = df[df[WFS_STUDY_ID].str.contains(r'^(WOLF|SIB)_\d{4}_.+')] # remove Test and Wolf_AN rows
+    df = df[df[WFS_STUDY_ID].str.contains(r'^(WOLF|SIB|DT)')] # remove Test and Wolf_AN rows
     df = df.rename(columns={WFS_SESSION_NUMBER: redcap_common.SESSION_NUMBER, WFS_STUDY_ID: redcap_common.STUDY_ID})
     arm_tail_pattern = re.compile(r'_arm_.')
     df['redcap_event_name'] = df['redcap_event_name'].str.replace(arm_tail_pattern,'', regex=True)
