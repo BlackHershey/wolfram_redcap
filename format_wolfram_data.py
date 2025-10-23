@@ -63,7 +63,7 @@ def format_wolfram_data():
     format_options.add_argument('-f', '--flatten', action='store_true', help='Arrange all session data in single row for participant')
     format_options.add_argument('--flatten_by', default='session number', choices=['session number', 'clinic year'], help='Flatten data by session number or clinic year')
     format_options.add_argument('-t', '--transpose', action='store_true', help='Transpose the data')
-    format_options.add_argument('-s', '--sort_by', default='variable', choices=['variable', 'session'], help='Sort flattened data by session or variable')
+    format_options.add_argument('-s', '--sort_by', default='variable', choices=['variable', 'session/clinic'], help='Sort flattened data by session or variable')
 
     args = parser.parse_args()
 

@@ -4,7 +4,7 @@ idna
 matplotlib
 numpy
 openpyxl
-pandas
+pandas==1.3.4
 Pillow
 PyCap
 pydicom
@@ -13,5 +13,5 @@ pywin32
 requests
 scipy
 subprocess32
-wxPython==4.0.7
+wxPython
 xlrd
