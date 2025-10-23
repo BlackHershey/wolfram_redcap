@@ -235,7 +235,9 @@ def flatten(df, flatten_by_column, sort=True, prefix=''):
     df_long.columns = [ '_'.join([prefix + str(tup[1]), tup[0]]) for tup in df_long.columns ]
 
     # merge stable and long back together
-    df = pd.merge(df_stable, df_long, how='inner', on=STUDY_ID)
+    # Use a left join so participants with stable (session 0) data but no longitudinal
+    # sessions are retained instead of being dropped (previously 'inner' dropped them).
+    df = pd.merge(df_stable, df_long, how='left', on=STUDY_ID)
 
     # remove s0_clinic_year and s0_session_number
     df = df.drop(['{}0_clinic_year'.format(prefix)], axis=1, errors='ignore')
